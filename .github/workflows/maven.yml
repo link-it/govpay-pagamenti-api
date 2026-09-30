@@ -109,14 +109,14 @@ jobs:
     # prodotto e caricato solo quando quei job gireranno davvero: e' un archivio
     # da centinaia di MB e non ha senso pagarlo su ogni branch di lavoro.
     - name: Generate Tomcat installer
-      if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' || endsWith(github.ref, '.x')
+      if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || endsWith(github.ref, '.x')
       run: |
         pushd src/main/resources/setup/
         bash prepareSetup.sh tomcat
         popd
 
     - name: Upload installer
-      if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' || endsWith(github.ref, '.x')
+      if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || endsWith(github.ref, '.x')
       uses: actions/upload-artifact@v7
       with:
         name: govpay-installer
@@ -247,7 +247,7 @@ jobs:
 
   # ── Upload SBOM su Dependency-Track ──────────────────────────────────
   # Traduzione del job GitLab dependency-track-upload.
-  # Esecuzione: sui tag, su master e sulle linee di manutenzione x.y.x
+  # Esecuzione: sui tag, su main e sulle linee di manutenzione x.y.x
   # (per esempio 3.9.x), con la stessa condizione usata da docker_dev.
   # Forzabile con FORCE_DTRACK_UPLOAD_JOB, disattivabile del tutto con
   # DISABLE_DTRACK_UPLOAD_JOB, che ha la precedenza su tutto il resto.
@@ -256,15 +256,15 @@ jobs:
     if: >-
       vars.DISABLE_DTRACK_UPLOAD_JOB != 'true' &&
       (github.ref_type == 'tag' ||
-       github.ref == 'refs/heads/master' || endsWith(github.ref, '.x') ||
+       github.ref == 'refs/heads/main' || endsWith(github.ref, '.x') ||
        vars.FORCE_DTRACK_UPLOAD_JOB == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
-    # Come su GitLab, il fallimento blocca solo tag, master e linee x.y.x;
+    # Come su GitLab, il fallimento blocca solo tag, main e linee x.y.x;
     # le esecuzioni forzate su altri branch sono tolleranti.
-    continue-on-error: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/master' && !endsWith(github.ref, '.x') }}
+    continue-on-error: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' && !endsWith(github.ref, '.x') }}
 
     steps:
       - uses: actions/checkout@v6
@@ -295,8 +295,8 @@ jobs:
           fi
           echo "SBOM: $(wc -c < sbom/cyclonedx/bom.cdx.json) byte"
 
-      # Su tag la versione e' il tag ed e' marcata latest; su master e sulle
-      # linee x.y.x la versione e' il nome del branch, cosi' master e le linee x.y.x
+      # Su tag la versione e' il tag ed e' marcata latest; su main e sulle
+      # linee x.y.x la versione e' il nome del branch, cosi' main e le linee x.y.x
       # convivono come versioni distinte dello stesso progetto.
       - name: Determina versione Dependency-Track
         id: dtrack
@@ -309,7 +309,7 @@ jobs:
             VERSION="$REF_NAME"; LATEST="true"
           else
             case "$REF_NAME" in
-              master|*.x) VERSION="$REF_NAME"; LATEST="false" ;;
+              main|*.x) VERSION="$REF_NAME"; LATEST="false" ;;
               *)          VERSION="dev";       LATEST="false" ;;
             esac
           fi
@@ -436,14 +436,14 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
-  # ── Immagine docker di sviluppo (push su master e sulle linee x.y.x) ──
-  # Un push ordinario, anche su master, produce un'immagine di sviluppo: solo un
+  # ── Immagine docker di sviluppo (push su main e sulle linee x.y.x) ──
+  # Un push ordinario, anche su main, produce un'immagine di sviluppo: solo un
   # tag produce le immagini stabili. Le due destinazioni sono repository distinti,
   # quindi i tag non possono collidere.
   docker_dev:
     runs-on: ubuntu-latest
     needs: [ build ]
-    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') && (github.ref == 'refs/heads/master' || endsWith(github.ref, '.x'))
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') && (github.ref == 'refs/heads/main' || endsWith(github.ref, '.x'))
     permissions:
       contents: read
 
