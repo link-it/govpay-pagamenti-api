@@ -26,7 +26,7 @@ Il war espone due operazioni, raggiungibili sotto il context root `/govpay-pagam
 * Avvia una sessione di pagamento per una o più pendenze. Le pendenze si indicano con l'identificativo del gestionale (`idA2A` e `idPendenza`), con gli estremi dell'avviso (`idDominio` e `iuv`) oppure, per i pagamenti spontanei, fornendone direttamente i dati.
 * Costruisce il carrello e lo inoltra al Checkout pagoPA. La risposta è `201` con la URL di redirect, oppure `302` con l'header `Location` se è abilitato il redirect diretto.
 * Il pagamento avviene sempre tramite Checkout, senza bisogno di abilitarlo: servono la URL base in `it.govpay.checkout.baseUrl` (default: `https://api.platform.pagopa.it/checkout/ec/v1`) e una stazione in versione V2. Il redirect diretto si abilita con `it.govpay.checkout.response.sendRedirect.enabled`. La property `it.govpay.checkout.enabled` non viene considerata.
-* Parametro opzionale `idSessionePortale` per correlare il pagamento alla sessione del portale.
+* Il parametro opzionale `idSessionePortale` è accettato solo per compatibilità con i client esistenti: viene riportato nelle tracce della richiesta, ma non viene salvato né restituito nella notifica di pagamento all'Ente. Per correlare l'esito alla sessione del portale si usano l'`idSession` restituito nella risposta e la URL di ritorno del Checkout.
 * Utenze ammesse: applicazione, cittadino e anonimo, con diritto di scrittura sul servizio API Pagamenti.
 
 ### Acquisizione della ricevuta di pagamento
