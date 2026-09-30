@@ -71,8 +71,13 @@ components:
     idSessionePortale:
       name: idSessionePortale
       in: query
-      description: Identificativo della sessione di pagamento assegnato dall'EC
+      description: >-
+        Identificativo della sessione di pagamento assegnato dall'EC.
+        Accettato solo per compatibilita' con i client esistenti: viene riportato nelle tracce della richiesta,
+        ma non viene salvato ne' restituito nella notifica di pagamento all'EC.
+        Per correlare l'esito alla sessione del portale utilizzare l'idSession restituito nella risposta e la URL di ritorno del Checkout.
       required: false
+      deprecated: true
       schema:
         type: string
       example: 'c8be909b-2feb-4ffa-8f98-704462abbd1d'
