@@ -1,0 +1,67 @@
+{
+   "dominio": {
+	  "idDominio":"#(idDominio)",
+	  "ragioneSociale": "#notnull",
+	  "indirizzo": "#ignore",
+	  "civico": "#ignore",
+	  "cap": "#ignore",
+	  "localita": "#ignore",
+	  "provincia": "#ignore",
+	  "nazione": "#ignore",
+	  "email": "#ignore",
+	  "pec": "#ignore",
+	  "tel": "#ignore",
+	  "fax": "#ignore",
+	  "web": "#ignore",
+	  "gln": "#ignore",
+	  "cbill": "#ignore",
+	  "iuvPrefix": "#ignore",
+	  "stazione": "#ignore",
+	  "auxDigit": "#ignore",
+	  "segregationCode": "#ignore",
+	  "logo": "#ignore",
+	  "abilitato": "#notnull",
+	  "autStampaPosteItaliane": "#ignore",
+	  "intermediato": "#ignore",
+	  "scaricaFr": "#ignore",
+	  "area": "#ignore",
+	  "unitaOperative": "#ignore",
+	  "contiAccredito": "#ignore",
+	  "entrate": "#ignore",
+	  "tipiPendenza": "#ignore"
+	},
+   "idIncasso":"#notnull",
+   "causale":"#(causale)",
+   "importo":"#(importo)",
+   "data":"#notnull",
+   "sct":"#notnull",
+   "iuv":"##string",
+   "idFlusso":"##string",
+   "riscossioni":[
+      {
+         "idDominio":"#(idDominio)",
+         "iuv":"#(iuv)",
+         "iur":"#notnull",
+         "indice":1,
+         "pendenza":"#string",
+         "vocePendenza":{
+            "indice":1,
+            "idVocePendenza":"1",
+            "importo":"#(importo)",
+            "descrizione":"#notnull",
+            "stato":"Eseguito",
+            "codEntrata":"SEGRETERIA",
+            "pendenza" : "#notnull"
+         },
+         "rpp":"#notnull",
+         "stato":"INCASSATA",
+         "tipo":"ENTRATA",
+         "importo":"#(importo)",
+         "data":"#notnull",
+         "incasso":"#string",
+         "commissioni": "##number",
+         "allegato": "#ignore"
+      }
+   ]
+}
+

@@ -1,0 +1,42 @@
+Feature: Rendicontazioni
+
+Background:
+
+
+
+Scenario: Rendicontazioni
+
+* callonce read('classpath:utils/common-utils.feature')
+* callonce read('classpath:configurazione/v1/anagrafica_estesa.feature')
+* callonce read('classpath:configurazione/v1/operazioni-resetCacheConSleep.feature')
+
+* call read('classpath:utils/nodo-genera-rendicontazioni.feature')
+* call read('classpath:utils/govpay-op-acquisisci-rendicontazioni.feature')
+* call read('classpath:utils/workflow/modellounico/v1/modellounico-bunch-pagamenti-v3.feature')
+
+Given url ndpsym_rendicontazioni_url 
+And path 'genera'
+When method get
+Then assert responseStatus == 200
+
+* call sleep(1000)
+* def dataInizioFR = getDateTime()
+* call sleep(1000)
+
+* call read('classpath:utils/workflow/modellounico/v1/modellounico-bunch-pagamenti-v3.feature')
+
+Given url ndpsym_rendicontazioni_url 
+And path 'genera'
+When method get
+Then assert responseStatus == 200
+
+* def idflusso_dom1_1 = response.response.rendicontazioni[0].identificativoFlusso
+
+* def idflusso_dom2_1 = response.response.rendicontazioni[1].identificativoFlusso
+
+* call read('classpath:utils/govpay-op-acquisisci-rendicontazioni.feature')
+
+# Attesa elaborazione flussi di rendicontazione acquisiti
+* call sleep(10000)
+* def dataFineFR = getDateTime()
+* call sleep(1000)

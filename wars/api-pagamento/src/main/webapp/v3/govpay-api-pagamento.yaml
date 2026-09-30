@@ -1,0 +1,59 @@
+openapi: 3.0.0
+info:
+  version: "3.0.0"
+  title: GovPay - API Pagamento
+  contact:
+    name: GitHub Project Page
+    url: 'https://github.com/link-it/GovPay/'
+  license:
+    name: GPL
+    url: 'https://github.com/link-it/GovPay/blob/master/LICENSE'
+servers:
+  - url: /govpay-pagamenti-api/rs/basic/v3/
+tags:
+  - name: Ricevute
+security:
+  - basicAuth: []    
+paths:
+  '/ricevute/{idDominio}/{iuv}/{idRicevuta}':
+    get:
+      operationId: getRicevuta
+      summary: Acquisizione di una ricevuta di avvenuto pagamento pagoPA
+      description: >-
+        Ricevuta pagoPA, sia questa veicolata nella forma di `RT` o di `recepit`, di esito positivo. 
+      tags:
+        - Ricevute
+      parameters:
+        - $ref: 'govpay-api-parameters.yaml#/components/parameters/PathIdDominio'
+        - $ref: 'govpay-api-parameters.yaml#/components/parameters/PathIuv'
+        - $ref: 'govpay-api-parameters.yaml#/components/parameters/PathIdRicevuta'
+      responses:
+        '201':
+          description: ricevuta di pagamento acquisita
+          content:
+            application/json:
+              schema:
+                $ref: 'govpay-api-schemas.yaml#/components/schemas/Ricevuta'
+              examples:
+                Pagamento standard: 
+                  $ref: 'govpay-api-examples.yaml#/components/examples/RicevutaEntrata'
+                Marca da bollo: 
+                  $ref: 'govpay-api-examples.yaml#/components/examples/RicevutaMBT'
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                example: stampa della ricevuta
+        '400':
+          $ref: 'govpay-api-responses.yaml#/components/responses/400BadRequest'
+        '401':
+          $ref: 'govpay-api-responses.yaml#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: 'govpay-api-responses.yaml#/components/responses/403NotAuthorized'
+        '500':
+          $ref: 'govpay-api-responses.yaml#/components/responses/500ServiceUnavailable'             
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE installer PUBLIC "-//tp23 //DTD Ant Installer Config//EN" "http://antinstaller.sf.net/dtd/antinstall-config-0.8.dtd">
+<installer name="GovPay vPRODUCT_VERSION Installer" defaultImageResource="/logoSetup.png" windowIcon="/iconaSetup.png" wide="550:275">
+
+	<!-- Se si caricano i loadDefaults non funzionano piu' i cambi di stato per il db -->
+	<!-- loadDefaults="true" > -->
+
+	<page type="input" name="intro" displayText="Installer GovPay vPRODUCT_VERSION">
+		<hidden property="antinstaller_product_version" value="PRODUCT_VERSION" />
+
+		<comment explanatoryText="GovPay - Porta di Accesso al Nodo dei Pagamenti SPC - http://www.gov4j.it/govpay" />
+		<comment explanatoryText="Copyright (c) 2014-2026	 Link.it srl (http://www.link.it)." />
+		<comment explanatoryText="" />
+		<comment explanatoryText="This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version." />
+		<comment explanatoryText="This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details." />
+		<comment explanatoryText="You should have received a copy of the GNU General Public License along with this program. If not, see &lt;http://www.gnu.org/licenses/&gt;." />
+	</page>
+
+
+	<page name="informazioniente" type="input" displayText="Informazioni Preliminari">
+		<comment displayText="" />
+		<hidden property="antinstaller_log_level" value="INFO" />
+
+		<hidden property="antinstaller_as" value="tomcat11" />
+
+		<hidden property="antinstaller_jndi_name" value="java:comp/env/it.govpay.datasource" />
+
+		<large-select defaultValue="postgresql" property="antinstaller_tipo_database" displayText="DB Platform">
+			<option value="postgresql" text="PostgreSQL" />
+			<option value="mysql" text="MySQL" />
+			<option value="oracle" text="Oracle" />
+			<option value="sqlserver" text="SQL Server" />
+			<option value="hsql" text="HyperSQL" />
+		</large-select>
+		<comment displayText="" />
+		<directory defaultValue="/etc/govpay" defaultValueWin="C:\govpay" displayText="Work Folder" checkExists="false" property="antinstaller_work_folder" />
+		<comment displayText="" />
+		<directory defaultValue="/var/log/govpay" defaultValueWin="C:\govpay\log" displayText="Log Folder" checkExists="false" property="antinstaller_log_folder" />
+	</page>
+
+	<page name="informazioniApplicative" type="input" displayText="Riferimenti accesso GovPay">
+		<comment displayText="Credenziali utente amministratore:" />
+		<validated property="antinstaller_ragione_sociale" displayText="Nome e cognome" regex=".+" />
+		<validated defaultValue="gpadmin" property="antinstaller_principal" displayText="Username" regex=".+" />
+		<validated property="antinstaller_principal_pwd" displayText="Password" regex="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#\$%\^&amp;])[a-zA-Z\d!@#\$%\^&amp;]{8,}$" />
+		<comment explanatoryText="La password deve contenere almeno una maiuscola, una minuscola, un numero, un carattere speciale ed essere lunga almeno 8 caratteri" />
+		<hidden property="antinstaller_cod_univoco" value="00000000000ADMIN" />
+	</page>
+
+	<page name="informazionidibasexml" type="input" displayText="Il Database" ifProperty="${antinstaller_tipo_database}!=postgresql">
+		<validated defaultValue="127.0.0.1" property="antinstaller_dbhost" displayText="Hostname" regex=".+" />
+		<conditional ifProperty="${antinstaller_tipo_database}=mysql">
+			<hidden property="porta-db" value="3306" />
+			<hidden property="TABLESPACE" value="govpay" />
+			<hidden property="antinstaller_driver_jdbc" value="com.mysql.jdbc.Driver" />
+			<hidden property="antinstaller_hibernate_dialect" value="org.hibernate.dialect.MySQLDialect" />
+		</conditional>
+		<conditional ifProperty="${antinstaller_tipo_database}=oracle">
+			<hidden property="porta-db" value="1521" />
+			<hidden property="TABLESPACE" value="XE" />
+			<hidden property="antinstaller_driver_jdbc" value="oracle.jdbc.OracleDriver" />
+			<hidden property="antinstaller_hibernate_dialect" value="org.hibernate.dialect.OracleDialect" />
+		</conditional>
+		<conditional ifProperty="${antinstaller_tipo_database}=sqlserver">
+			<hidden property="porta-db" value="1433" />
+			<hidden property="TABLESPACE" value="govpay" />
+			<hidden property="antinstaller_driver_jdbc" value="com.microsoft.sqlserver.jdbc.SQLServerDriver" />
+			<hidden property="antinstaller_hibernate_dialect" value="org.hibernate.dialect.SQLServerDialect" />
+		</conditional>
+		<conditional ifProperty="${antinstaller_tipo_database}=hsql">
+			<hidden property="porta-db" value="9001" />
+			<hidden property="TABLESPACE" value="govpay" />
+			<hidden property="antinstaller_driver_jdbc" value="org.hsqldb.jdbcDriver" />
+			<hidden property="antinstaller_hibernate_dialect" value="org.hibernate.dialect.HSQLDialect" />
+		</conditional>
+
+		<validated defaultValue="${porta-db}" regex="^[0-9]{1,5}$" property="antinstaller_dbport" displayText="Porta" />
+		<validated defaultValue="govpay" property="antinstaller_dbname" displayText="Nome Database" regex=".+" />
+		<validated defaultValue="govpay" property="antinstaller_dbusername" displayText="Username" regex=".+" />
+		<validated defaultValue="govpay" property="antinstaller_dbpassword" displayText="Password" regex=".+" />
+	</page>
+
+	<page name="informazionidibasexml" type="input" displayText="Il Database" ifProperty="${antinstaller_tipo_database}==postgresql">
+		<validated defaultValue="127.0.0.1" property="antinstaller_dbhost" displayText="Hostname" regex=".+" />
+		<conditional ifProperty="${antinstaller_tipo_database}=postgresql">
+			<hidden property="porta-db" value="5432" />
+			<hidden property="TABLESPACE" value="openspcoop2" />
+			<hidden property="antinstaller_driver_jdbc" value="org.postgresql.Driver" />
+			<hidden property="antinstaller_hibernate_dialect" value="org.hibernate.dialect.PostgreSQLDialect" />
+		</conditional>
+		<validated defaultValue="${porta-db}" regex="^[0-9]{1,5}$" property="antinstaller_dbport" displayText="Porta" />
+		<validated defaultValue="govpay" property="antinstaller_dbname" displayText="Nome Database" regex=".+" />
+		<validated defaultValue="govpay" property="antinstaller_dbusername" displayText="Username" regex=".+" />
+		<validated defaultValue="govpay" property="antinstaller_dbpassword" displayText="Password" regex=".+" />
+	</page>
+
+	<page name="configurazioniavanzate" type="input" displayText="Configurazioni Avanzate">
+		<comment displayText="Configurazione Spring Security" title="true" />
+		<checkbox property="antinstaller_springsec_ext" displayText="Usa file di configurazione esterni" defaultValue="false" />
+		<comment displayText="" />
+	</page>
+
+	<page name="componentiAggiuntivi" type="input" displayText="Componenti Aggiuntivi">
+		<comment displayText="Abilitazione Componenti Aggiuntivi" title="true" />
+		<comment explanatoryText="Selezionare i componenti aggiuntivi da abilitare." />
+		<comment displayText="" />
+		<checkbox property="antinstaller_batch_aca" displayText="Batch ACA" defaultValue="false" />
+		<checkbox property="antinstaller_batch_fdr" displayText="Batch FdR" defaultValue="false" />
+		<checkbox property="antinstaller_batch_iban" displayText="Batch Verifica IBAN" defaultValue="false" />
+		<checkbox property="antinstaller_batch_notifica" displayText="Batch Notifica Rendicontazioni" defaultValue="false" />
+	</page>
+
+	<page name="batchAcaConfig" type="input" displayText="Configurazione Batch ACA" ifProperty="${antinstaller_batch_aca}=true">
+		<validated defaultValue="http://localhost:10001/api/batch" property="antinstaller_batch_aca_url" displayText="Base URL" regex=".+" />
+		<comment explanatoryText="Indicare la Base URL dell'endpoint esposto dal batch." />
+	</page>
+
+	<page name="batchFdrConfig" type="input" displayText="Configurazione Batch FdR" ifProperty="${antinstaller_batch_fdr}=true">
+		<validated defaultValue="http://localhost:10005/api/batch" property="antinstaller_batch_fdr_url" displayText="Base URL" regex=".+" />
+		<comment explanatoryText="Indicare la Base URL dell'endpoint esposto dal batch." />
+	</page>
+
+	<page name="batchRecuperoRtConfig" type="input" displayText="Configurazione Batch Recupero RT">
+		<validated defaultValue="http://localhost:10006/api/batch" property="antinstaller_batch_recupero_rt_url" displayText="Base URL" regex="^https?://.+$" />
+		<comment explanatoryText="Indicare la Base URL dell'endpoint esposto dal batch Recupero RT esterno (campo obbligatorio)." />
+	</page>
+
+	<page name="batchIbanConfig" type="input" displayText="Configurazione Batch IBAN" ifProperty="${antinstaller_batch_iban}=true">
+		<validated defaultValue="http://localhost:10008/api/batch" property="antinstaller_batch_iban_url" displayText="Base URL" regex=".+" />
+		<comment explanatoryText="Indicare la Base URL dell'endpoint esposto dal batch." />
+	</page>
+
+	<page name="batchNotificaConfig" type="input" displayText="Configurazione Batch Notifica" ifProperty="${antinstaller_batch_notifica}=true">
+		<validated defaultValue="http://localhost:10009/api/batch" property="antinstaller_batch_notifica_url" displayText="Base URL" regex=".+" />
+		<comment explanatoryText="Indicare la Base URL dell'endpoint esposto dal batch." />
+	</page>
+
+	<page name="Fine" displayText="Installazione" type="progress" showTargets="true" target="setup_completo" />
+
+</installer>

@@ -1,0 +1,29 @@
+{
+   "dominio":"#notnull",
+   "idIncasso":"#notnull",
+   "causale":"#notnull",
+   "importo":"#notnull",
+   "data":"#notnull",
+   "sct":"#notnull",
+   "iuv":"##string",
+   "idFlusso":"##string",
+   "stato":"#notnull",
+   "riscossioni":[
+      {
+         "idDominio":"#notnull",
+         "iuv":"#notnull",
+         "iur":"#notnull",
+         "indice":"#notnull",
+         "pendenza":"#notnull",
+         "vocePendenza":"#notnull",
+         "rpp":"#notnull",
+         "stato":"#notnull",
+         "tipo":"#notnull",
+         "importo":"#notnull",
+         "data":"#notnull",
+         "commissioni":"##number",
+         "allegato":"#ignore",
+         "incasso":"#notnull"
+      }
+   ]
+}

@@ -1,17 +1,69 @@
-target/
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.versionsBackup
-pom.xml.next
-release.properties
-dependency-reduced-pom.xml
-buildNumber.properties
-.mvn/timing.properties
-# https://maven.apache.org/tools/wrapper/#Usage_with_or_without_Binary_JAR
-.mvn/wrapper/maven-wrapper.jar
+# dipendenze terze parti
+/dependencies
 
-# Eclipse m2e generated files
-# Eclipse Core
+# custom property filters
+/src/main/resources/filters/*
+
+# maven version backups
+pom.xml.versionsBackup
+
+# compiled output
+/dist
+/tmp
+/out-tsc
+/target
+/bin
+_build
+
+# swagger
+.swagger-codegen
+
+# dependencies
+/node_modules
+
+# IDEs and editors
+/.idea
 .project
-# JDT-specific (Eclipse Java Development Tools)
 .classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+testem.log
+/typings
+
+# e2e
+/e2e/*.js
+/e2e/*.map
+
+# System Files
+.DS_Store
+Thumbs.db
+
+/docker/buildcontext
+/docker/compose
+
+# Maven (da link-it/govpay-pagamenti-api)
+buildNumber.properties
+dependency-reduced-pom.xml
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+pom.xml.next
+pom.xml.releaseBackup
+pom.xml.tag
+release.properties
+target/

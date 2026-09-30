@@ -1,0 +1,8 @@
+{
+  "ragioneSociale": "Mario Rossi",
+  "password" : '#(pwdOperatore)',
+  "domini": ["*"],
+  "tipiPendenza": ["*"],
+  "acl": [ { "servizio": "Pagamenti", "autorizzazioni": [ "R", "W" ] }, { "servizio": "Pendenze", "autorizzazioni": [ "R", "W" ] } ],
+  "abilitato": true
+}
