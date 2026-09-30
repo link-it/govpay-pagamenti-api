@@ -1,0 +1,15 @@
+Feature: Notifica attivazione RPT
+
+Background: 
+
+* configure retry = { count: 30, interval: 1000 }
+
+Scenario: 
+
+Given url ente_api_url
+And path 'notificaAttivazioneByIdSession', idSession
+And retry until responseStatus == 200 
+When method get
+
+* def notificaAttivazione = response
+* def rptNotificaAttivazione = response.rpt

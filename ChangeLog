@@ -1,0 +1,1195 @@
+2026-09-29  Giuliano Pintori <giuliano.pintori@link.it>
+
+        * Avanzamento versione 3.9.3.p3. GovPay Pagamenti API usa le librerie ufficiali di GovPay 3.9.3.p3 (api-commons, core, orm e le altre), installate con script/install-govpay-jars.sh dai sorgenti del tag link-it/govpay 3.9.3.p3.
+        Allineate a GovPay 3.9.3.p3 le versioni delle dipendenze nel pom radice, la patch SQL 3.9.2.sql per tutti i database, gli script install.sh e install.cmd e i jar di Ant 1.10.18 dell'installer, i file di licenza di terze parti e il driver PostgreSQL della testsuite.
+        Non riportate le modifiche all'installer relative alle pagine "Servizi Backoffice", non presenti in questo progetto.
+
+2026-09-13  Giuliano Pintori <pintori@link.it>
+
+        * Allineati i file di licenza di terze parti alla composizione effettiva della versione: 95 artefatti hanno cambiato versione, uno e' nuovo e le directory passano da 259 a 260.
+        Oltre ai bump gia' elencati nell'aggiornamento delle dipendenze del 2026-09-10, sono rientrate le librerie trascinate per via transitiva: classgraph 4.8.184 -> 4.8.192, error_prone_annotations 2.47.0 -> 2.50.0, httpcore5 e httpcore5-h2 5.4 -> 5.4.3, micrometer-commons e micrometer-observation 1.16.6 -> 1.16.7, neethi 3.2.2 -> 3.2.3 e oauth2-oidc-sdk 11.37.2 -> 11.38.2.
+        Aggiunta la licenza di checker-qual 3.55.1, che compare ora in scope provided, e affiancata a jspecify 1.0.0 la 1.0.1: la doppia versione e' corretta, perche' dependency:list le risolve entrambe su moduli diversi del reactor. Rimossa invece angus-activation 2.0.2, che era rimasta accanto alla 2.0.3 pur non essendo piu' risolta da alcun modulo. Il file di HdrHistogram 2.2.2 e' stato rinominato da license.txt a LICENSE_CC0_1.0.txt, per coerenza con la denominazione usata dagli altri artefatti.
+
+        * [Sonar] Lavorate le 59 segnalazioni Reliability aperte sul progetto link-it_govpay: 49 javabugs:S2259 (accesso a oggetto potenzialmente nullo, Blocker), 2 java:S9351 (BigDecimal.equals al posto di compareTo, High), 1 java:S9365 (costruttore di copia che non inizializza tutti i campi, Medium) e 7 java:S8688 (now() senza ZoneId esplicita, Info).
+        53 di esse erano gia' state risolte sul branch 3.10.x e sono state portate qui con il cherry-pick degli otto commit dedicati (436d6a06, 63b9115c, 5501e1aa, a943c1a0, 0b994076, a02da126, e96607a7, 96d4f58f), applicati tutti senza conflitti; il dettaglio di ogni correzione e delle relative valutazioni di raggiungibilita' e' nei messaggi dei commit portati. Fra queste, l'unica correzione che modifica un comportamento e' quella su S9351, isolata in un commit revertabile da solo: gli importi sono ora confrontati con compareTo, quindi una scala diversa a parita' di valore non conta piu' come modifica della pendenza e non produce ne' aggiornamenti spuri del versamento ne' notifiche all'Archivio Centralizzato.
+        Le restanti 6 segnalazioni non avevano riscontro sul 3.10.x e sono state corrette qui: i 4 accessi a giornale in EventiUtils.getConfigurazioneComponente, ricondotti al ritorno nullo che il metodo produce gia' per i componenti privi di sezione dedicata e che tutti i chiamanti verificano; la catena getAuthenticationDetails(user).getApplicazione().getCodApplicazione() in DocumentiController v2, che veniva dereferenziata due volte prima del controllo di autorizzazione e ora e' preceduta dalla NotAuthorizedException gia' usata in RppController; e il costruttore di delega BasicBD(BasicBD), documentato con la javadoc che ne spiega l'invariante e corretto sui tre campi i cui accessor non delegano al padre.
+        La successiva analisi ha confermato la chiusura di 55 segnalazioni su 59 e ne ha lasciate aperte 4: le 3 javabugs:S2259 chiuse nel giro successivo e la java:S9365 su BasicBD, classificata come falso positivo.
+
+        * [Sonar] BasicBD, costruttore di delega: idTransaction, idModulo e useCache sono ora propagati dalla BD padre. getIdTransaction() restituiva null su ogni BD figlia, e con esso le circa 330 chiamate nella forma this.setupConnection(this.getIdTransaction()) portavano un identificativo di transazione nullo fino a ConnectionManager.getConnection; getBdConfigWrapper(), che legge i campi anziche' gli accessor, costruiva un BDConfigWrapper con identificativo nullo e cache disabilitata. Effetto collaterale della correzione: i tre punti che usano getBdConfigWrapper (OperatoriBD, DominiBD e ApplicazioniBD, tutti nella costruzione della lista di risultati) tornano a rispettare l'impostazione di cache della BD radice.
+
+        * [Sonar] Chiuse le 3 segnalazioni javabugs:S2259 rimaste aperte dopo la seconda analisi. Due, su SSLHeaderPreAuthFilter e su Promemoria.gestisciUtilsException, sono la coda di una correzione precedente e non difetti nuovi: la riga segnalata e' una chiamata diretta a log.debug, dove l'unica espressione dereferenziabile e' il logger. La causa e' la convivenza dei due idiomi di logging nello stesso metodo, perche' LogUtils.logDebug verifica if(log != null) prima di scrivere e l'analisi deduce da quella chiamata che il logger possa essere nullo, segnalando la prima chiamata diretta successiva sullo stesso percorso; sostituendone una per volta la segnalazione si sposta semplicemente a quella dopo. L'idioma e' stato quindi uniformato su tutti i metodi interessati, sei chiamate in SSLHeaderPreAuthFilter e sette nei tre metodi gestisci* di Promemoria, che sono quelli che gia' usavano LogUtils; restano invariate le chiamate dirette dei metodi invioPromemoria*, che non invocano LogUtils e non presentano il problema. Come effetto collaterale i messaggi passano ora dalla sanitizzazione di LogUtils.sanitizeForLog.
+        La terza, sul costruttore di InviaNotificaThread, e' invece un difetto reale: il costruttore dichiara di verificare che tutti i campi siano valorizzati ma dereferenziava this.rpt subito dopo averlo letto da Notifica.getRpt, che restituisce null quando idRpt non e' valorizzato. Il caso e' ora ricondotto alla ServiceException gia' dichiarata dal costruttore e gestita da tutti e sei i chiamanti, al posto di un NullPointerException sollevato nel thread chiamante al momento della costruzione.
+
+        * [Sonar] La segnalazione java:S9365 su BasicBD(BasicBD) e' un falso positivo e va marcata come tale sul progetto SonarCloud: il costruttore non e' di copia ma di delega, ed e' quello con cui ogni XxxBD si aggancia a una BD gia' aperta. Dei 56 campi della classe, i 45 service ORM, la connessione e i flag di stato non devono essere copiati, perche' i relativi accessor delegano al padre finche' e' valorizzato; copiarli introdurrebbe stato morto e destinato a divergere. L'invariante e' documentato nella javadoc del costruttore.
+
+        * Assegnati nomi distinti alle due pagine "Servizi Backoffice" dell'installer. In antinstall-config.xml le due varianti mutuamente esclusive della pagina, selezionate via ifProperty su ${antinstaller_as} (wildfly28 e non-wildfly28), condividevano lo stesso attributo name="informazioniserviziconsole": essendo il nome la chiave con cui AntInstaller identifica le pagine, le due definizioni collidevano. Rinominate rispettivamente in informazioniserviziconsolewildfly e informazioniserviziconsolestandard; invariati property, defaultValue e condizioni di visibilita'.
+
+        * Derivati dal base path delle API-Backoffice i path dei servizi del cruscotto di backoffice. I token GOVPAY_BACKEND_API_FORM_BASE_URL e GOVPAY_BACKEND_API_PUBLIC_BASE_URL applicati da ant/utils.xml leggono le property antinstaller_govpay_backend_api_form_base_url e antinstaller_govpay_backend_api_public_base_url, valorizzate solo in local_env.xml per il build locale e quindi mai impostate dalla procedura guidata, dove l'utente indica il solo antinstaller_govpay_backend_api_base_url. Aggiunto in build.xml un blocco groovy che le calcola per derivazione (<base path API-Backoffice>/rs/form/v1 e <base path API-Backoffice>/public), con fallback ai valori standard /govpay-api-backoffice/rs/form/v1 e /govpay-api-backoffice/public quando la property di origine non e' valorizzata.
+
+2026-09-11  Giuliano Pintori <pintori@link.it>
+
+        * Allineati ai nomi reali dei file i riferimenti a xml-apis_antinstaller-0.8b.jar e ai-icons-eclipse_antinstaller-0.8b.jar nel classpath di install.sh e install.cmd: mancando il trattino prima della versione, le due voci puntavano a file inesistenti e venivano ignorate silenziosamente da java. Il secondo jar contiene le icone (resources/icons/*.png) che ant-installer-0.8b.jar cerca nella procedura guidata, quindi in modalita' swing non venivano caricate.
+
+        * Risolta la segnalazione NVDCVE-2026-78254 su ant-1.10.11.jar. I jar di Ant utilizzati dall'installer (AntInstaller) non sono dipendenze maven ma file versionati sotto src/main/resources/setup/core/installer/lib/antinstaller, quindi non erano stati toccati dall'aggiornamento della property ant.version: ant, ant-launcher e ant-apache-regexp sono stati portati dalla 1.10.11 alla 1.10.18, la stessa versione gia' usata come dipendenza, e sono stati aggiornati di conseguenza i classpath di install.sh e install.cmd.
+
+2026-09-10  Giuliano Pintori <pintori@link.it>
+
+        * Avanzamento versione 3.9.3.p3.
+
+        * Aggiornate le dipendenze alle ultime versioni di patch/minor disponibili: jackson 2.22.0 -> 2.22.2, cxf 4.2.2 -> 4.2.3, driver postgresql 42.7.11 -> 42.7.13, commons-codec 1.22.0 -> 1.22.1, guava 33.6.0 -> 33.7.1, snakeyaml 2.6 -> 2.7, freemarker 2.3.34 -> 2.3.35, javassist 3.31.0-GA -> 3.33.0-GA, spring 7.0.8 -> 7.0.9, spring-security 7.1.0 -> 7.1.1, spring-ldap 4.1.0 -> 4.1.1, slf4j 2.0.17 -> 2.0.19, log4j 2.26.0 -> 2.26.1, httpclient5 5.6.1 -> 5.6.4, angus-mail 2.0.4 -> 2.0.5, swagger-core 2.2.51 -> 2.2.55, swagger-parser 2.1.44 -> 2.1.48, swagger-codegen-maven-plugin 3.0.81 -> 3.0.82, swagger-ui 5.32.6 -> 5.32.14, ant 1.10.17 -> 1.10.18 e org.json 20250517 -> 20260814.
+        Restano da valutare a parte, perche' comportano un salto di major, gli aggiornamenti di jaxb (3.0.2 -> 4.0.9, che allineerebbe le implementazioni alla jakarta.xml.bind-api 4.0.3 gia' in uso), jakarta.ws.rs-api, groovy, jasperreports, json-path, networknt json-schema-validator, jsch, rhino, com.sun.mail, jersey e del plugin owasp dependency-check.
+
+        * Issue #881 Fix errore 500 nel download XML del flusso di rendicontazione quando fr.xml e' NULL.
+        La lettura di un flusso con Accept: application/xml restituiva un 500 INTERNO/INTERNAL con dettaglio "XML del flusso di rendicontazione [...] non presente e rendicontazioni non fornite" per tutti i flussi con la colonna fr.xml valorizzata a NULL, condizione ormai ordinaria perche' dalla 3.8.2/3.9 l'acquisizione e' demandata al componente esterno govpay-fdr-batch (issue #846), che alimenta fr e rendicontazioni dalle API FdR REST senza persistere il tracciato XML originale. Il fallback di ricostruzione FrUtils.buildXml introdotto nella 3.9.2 non veniva mai attivato dalle API: RendicontazioniDAO.leggiFlussoRendicontazione, nel ramo Accept: application/xml, caricava solo l'Fr tramite FrBD senza valorizzare mai response.setRendicontazioni (lo faceva unicamente il ramo JSON, che legge dalla vista rendicontazioni), quindi i controller invocavano FrUtils.getXml(fr, null) e la ricostruzione si arrestava sulla NotFoundException. Fix: il ramo XML del DAO ora apre la connessione con RendicontazioniBD (con FrBD agganciato alla stessa connessione) e carica anche le rendicontazioni quando fr.getXml() e' NULL, cosi' che i controller possano ricostruire il tracciato; quando l'XML originale e' presente comportamento e costo restano invariati. Impatta api-backoffice v1 e api-ragioneria v1, v2 e v3, che condividono lo stesso DAO.
+        Corretto contestualmente in FrUtils.buildXml il caso di rendicontazioni.esito nullo, che provocava NPE e un ulteriore 500 opaco. Aggiunti alla testsuite due scenari di integrazione sulla lettura in formato XML del dettaglio del flusso, uno sul flusso acquisito dal batch FdR esterno, con fr.xml NULL (tracciato ricostruito), e uno con il tracciato persistito sulla colonna (restituito cosi' com'e'), entrambi sulle tre forme della risorsa.
+
+2026-07-02  Giuliano Pintori <pintori@link.it>
+
+        * Avanzamento versione 3.9.3.p2.
+
+        * Issue #874 Fix persistenza del flag "abilitato" del connettore d'integrazione dell'Applicazione.
+        Il connettore d'integrazione delle Applicazioni (identificato in DB come <CODAPP>_INTEGRAZIONE) veniva sempre persistito con la proprieta' EAV ABILITATO='false' indipendentemente dallo stato dell'applicazione. Causa: ConnettoriConverter.getConnettore(Connector), a differenza dei siblings ConnettorePagopa*Converter che cablano setAbilitato(true), non impostava mai il flag; poiche' Connettore.abilitato ha default Java false, l'UPDATE su connettori scriveva sempre 'false'. Il bug e' silenzioso a runtime (nessun consumatore controlla isAbilitato() sul connettore integrazione, solo la presenza), ma potenziale trap per futuri check e fonte di confusione nelle query di verifica. Fix: in wars/api-backoffice ApplicazioniConverter.getPutApplicazioneDTO, il connettoreIntegrazione neocreato ora eredita setAbilitato(applicazionePost.getAbilitato()) - stesso valore usato per utenza.setAbilitato() alla riga 62 - allineando il connettore allo stato dell'applicazione.
+        Backfill installazioni esistenti: appesa in coda ai file db/sql/<dialetto>/patch/3.9.2.sql (postgresql, oracle, mysql, sqlserver, hsql) una UPDATE che ricalcola la proprieta' ABILITATO del connettore integrazione a partire da utenze.abilitato dell'applicazione associata. Idempotente; non tocca connettori diversi da quelli d'integrazione (JOIN via applicazioni.cod_connettore_integrazione).
+
+2026-06-26  Giuliano Pintori <pintori@link.it>
+
+        * Avanzamento versione 3.9.3.p1.
+
+        * Issue #872 Fix calcolo URL HATEOAS di paginazione con Tomcat RewriteValve dietro reverse proxy.
+        Il campo prossimiRisultati restituito dalle API REST risultava malformato (es. ".../v1/rpp..." diventava ".../v11/rpp...") nelle installazioni con reverse proxy Apache che inoltra a Tomcat configurato con RewriteValve. Il metodo getServicePath(UriInfo), duplicato in 7 controller (BaseController di api-backoffice/v1, api-ragioneria/v1-v2-v3, api-user/v1, api-pendenze/v1-v2) e in UriBuilderUtils.getServicePathConURIAssoluta, conteneva un substring((idxOfBaseUri + baseUri.length()) - 1) che presupponeva baseUri terminante con "/"; sotto RewriteValve la condizione non e' garantita e in piu' indexOf(baseUri) puo' tornare -1 perche' la requestUri usa il path pubblico mentre la baseUri usa il context-path interno del WAR. La logica e' stata estratta nell'utility unica UriBuilderUtils.extractServicePath(UriInfo) (rimosso il -1, aggiunto fallback su getRawPath()/getRawQuery() per il caso indexOf=-1, normalizzazione "/" iniziale) e tutti gli 8 punti di uso ora delegano alla utility.
+
+2026-06-15  Giuliano Pintori <pintori@link.it>
+
+	* Rilascio versione 3.9.3.
+
+2026-06-14  Giuliano Pintori <pintori@link.it>
+
+	* [Sonar] Dominio/DominioIndex (backoffice v1): rinominato il getter ScaricaFr in getScaricaFr (sonar:Consistency / Blocker) per evitare il clash con il fluent setter scaricaFr ed allineare la naming convention a quella della classe sorella DominioPost. Nessun chiamante usava il getter "errato"; Jackson serializza/deserializza tramite l'annotation @JsonProperty("scaricaFr") gia' presente, quindi il payload JSON resta invariato.
+
+	* [Sonar] GovpayLdapOauth2Details/GovpayLdapOidcOauth2Details (java:S2583): rimossa condizione sempre vera (ldapUserDetailsImpl.getAuthorities() != null - per contratto Spring Security non torna mai null) ed eliminata chiamata orfana senza assegnamento sulla stessa espressione.
+
+2026-06-13  Giuliano Pintori <pintori@link.it>
+
+	* Issue #869 Fix deploy su Tomcat 11 dopo migrazione Spring Security 7.
+	I 5 WAR fallivano lo startup con NoClassDefFoundError: org/springframework/security/access/annotation/SecuredAnnotationSecurityMetadataSource. Causa: l'elemento XML <global-method-security secured-annotations="enabled"> presente nei 5 file spring-sec/*-applicationContext-security.xml era deprecato dalla 5.6 e rimosso in Spring Security 7. Sostituito in tutti i 5 file con l'equivalente "letterale" del nuovo namespace: <method-security secured-enabled="true" pre-post-enabled="false"/> (mantiene lo stesso comportamento del vecchio default: solo @Secured attivo, @PreAuthorize/@PostAuthorize disabilitate; nel codebase non e' presente alcuna annotation di method security, quindi a runtime invariato).
+
+	* Issue #869 Fix script di health-check Jenkins per default-deny di Spring Security 7.
+	jenkins.checkgp.sh probava la URL root /govpay-api-backoffice/ che ora restituisce 403 (in Spring Security 7 il default e' deny-all anche per richieste fuori dai filter chain pattern, mentre in 6.x transitavano senza filtri). Cambiato l'endpoint di sonda a /rs/basic/v1/info, gia' dichiarato permitAll nella security XML ed esposto come liveness endpoint del progetto (stesso usato dal Docker HEALTHCHECK).
+
+	* [Build] Impostata <owasp.plugin.autoUpdate>true</owasp.plugin.autoUpdate> nel pom (era false). Il bump del plugin dependency-check 12.2.0 -> 12.2.2 cambia lo schema del DB embedded; con autoUpdate=false il plugin non riesce a migrarlo e fallisce con "Old database schema identified". Il default piu' sicuro e' true; in caso di problemi temporanei sul repository NIST si puo' sempre override puntuale via CLI con -Dowasp.plugin.autoUpdate=false.
+
+2026-06-12  Giuliano Pintori <pintori@link.it>
+
+	* Avanzamento versione a 3.9.3-SNAPSHOT.
+
+	* Issue #869 Migrazione a Spring Framework 7.x.
+	Aggiornate le dipendenze Spring del reactor principale alla baseline allineata con govpay-bom:
+	- spring.version: 6.2.17 -> 7.0.8
+	- spring.security.version: 6.5.9 -> 7.1.0
+	- spring.ldap.version: 3.3.3 -> 4.1.0
+	- cxf.version: 4.1.3 -> 4.2.2 (baseline Jakarta EE 11 + JDK 17, nessuna modifica al codice)
+	- cxf.xjc.runtime.version: 4.1.0 -> 4.2.0 (allineamento con CXF 4.2.2)
+	Rimossa la dipendenza spring-jcl (eliminata in Spring 7; il bridging commons-logging e' gia' fornito da log4j-jcl). Rimossa dichiarazione in pom.xml e jars/core/pom.xml.
+	[wars/api-user] LogoutRequestMatcher: rimossa l'implementazione dell'interfaccia RequestVariablesExtractor (eliminata in Spring Security 7) e l'import di AntPathRequestMatcher dalla Javadoc. Il metodo extractUriTemplateVariables resta esposto come metodo pubblico per gli eventuali chiamanti diretti.
+	Jackson e' rimasto a 2.x (l'upgrade a 3.x verra' tracciato separatamente per via dell'impatto a cascata su CXF/Swagger/Jersey/OpenSPCoop2).
+	Gli XML di Spring Security (5 file spring-sec/*-applicationContext-security.xml) usano schemi senza versione: nessuna modifica strutturale necessaria.
+
+	* Aggiornamento minor/patch delle dipendenze al massimo stabile (esclusi milestone/alpha/major):
+	- jackson: 2.21.1 -> 2.22.0 (+ annotations 2.21 -> 2.22)
+	- jersey: 3.1.11 -> 3.1.12
+	- httpclient5: 5.5 -> 5.6.1
+	- nimbus-jose-jwt: 10.4.2 -> 10.9.1
+	- log4j (logger.version): 2.25.4 -> 2.26.0
+	- swagger v3: 2.2.36 -> 2.2.51; swagger parser v3: 2.1.32 -> 2.1.44; swagger codegen plugin: 3.0.71 -> 3.0.81
+	- webjars-swaggerui: 5.20.1 -> 5.32.6
+	- snakeyaml: 2.5 -> 2.6
+	- guava: 33.4.8-jre -> 33.6.0-jre
+	- javassist: 3.30.2-GA -> 3.31.0-GA
+	- postgresql driver: 42.7.7 -> 42.7.11
+	- commons-csv 1.14.0 -> 1.14.1, commons-codec 1.19.0 -> 1.22.0, commons-io 2.20.0 -> 2.22.0, commons-text 1.14.0 -> 1.15.0, commons-lang3 3.18.0 -> 3.20.0, commons-pool2 2.12.1 -> 2.13.1, commons-net 3.12.0 -> 3.13.0
+	- ant: 1.10.15 -> 1.10.17, jaxen: 2.0.0 -> 2.0.6, zxing javase: 3.5.3 -> 3.5.4
+	- jakarta-api (xml.ws): 4.0.2 -> 4.0.3, jakarta-saaj-impl: 3.0.4 -> 3.0.6
+	- json-path: 2.9.0 -> 2.10.0, networknt json-schema-validator: 1.5.6 -> 1.5.9
+	- owasp dependency-check plugin: 12.2.0 -> 12.2.2
+	Scartati: angus-mail 2.1.0-M1, jakarta.mail/activation/servlet -M*, groovy 2.6.0-alpha-4, slf4j 2.1.0-alpha1, jaxb 3.1.0-M1, rhino 1.9.1 (major jump).
+
+	* [Build] Cache OWASP Dependency-Check versionata in base al plugin (allineamento con govpay-bom).
+	Aggiunto in .github/workflows/maven.yml e .github/workflows/refresh-owasp-db.yml lo step di lettura dinamica di owasp.plugin.version dal pom (mvn help:evaluate). La chiave di cache passa da:
+	  ${{ runner.os }}-owasp-${{ github.sha }}    (invalidata ad ogni commit)
+	a:
+	  ${{ runner.os }}-owasp-v<plugin-version>-<date>
+	Beneficio: la cache vive un'intera giornata e viene invalidata automaticamente al bump del plugin (lo schema del DB cambia tra release), evitando schema-mismatch del DB embedded.
+	In maven.yml aggiunto NOUPDATE_FLAG=-DautoUpdate=false quando la cache giornaliera e' calda, per evitare un nuovo download del DB NVD.
+	In refresh-owasp-db.yml allineato lo scarico della CLI dependency-check alla versione del plugin (era hardcoded 12.1.0) e aggiornato il repo di download da jeremylong/DependencyCheck a dependency-check/DependencyCheck.
+
+2026-05-21  Giuliano Pintori <pintori@link.it>
+
+	* Avanzamento versione a 3.9.2.p1.
+
+2026-05-21  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Issue #866 Risolto bug raw_esito azzerato durante la fase IN_STAMPA
+	Quando il task ElaborazioneTracciatiPendenze[Check] riprendeva un tracciato gia' in IN_STAMPA (es. dopo errore in stampa, multi-nodo, sovrapposizione tra Check 5s ed il task principale 30min), la chiamata a updateFineElaborazione azzerava la colonna raw_esito sul DB.
+	Causa: il filtro di findAll in Operazioni.elaborazioneTracciatiPendenze (Operazioni.java:674) non includeva RAW_ESITO, quindi al secondo passaggio tracciato.rawEsito era null in memoria; saltato il blocco IN_CARICAMENTO (perche' stepElaborazione era gia' CARICAMENTO_OK/KO), si arrivava comunque a updateFineElaborazione che riscriveva incondizionatamente RAW_ESITO con null.
+	Fix principale: aggiunto filter.setIncludiRawEsito(true) in Operazioni.elaborazioneTracciatiPendenze cosi' che al secondo passaggio l'oggetto in memoria contenga gia' l'esito persistito.
+	Fix difensivo: in TracciatiBD.updateFineElaborazione i campi FILE_NAME_ESITO e RAW_ESITO non vengono piu' scritti se null, evitando regressioni per qualunque altro chiamante che dimenticasse di precaricare i campi.
+
+	* [Testsuite]
+	Aggiunti i check responseBytes != null && responseBytes.length > 0 dopo ogni GET /pendenze/tracciati/{id}/esito (48 occorrenze su 7 feature) per intercettare il caso "esito vuoto" che il test base ignorava.
+	Aggiunta feature di regressione tracciati-csv-post-avvisi-300-regression-rawesito.feature che riproduce il secondo passaggio via SQL (UPDATE tracciati SET stato='IN_STAMPA', stepElaborazione='CARICAMENTO_OK') e verifica che raw_esito resti popolato.
+	Aggiunto utils/java/DbUtils.java (wrapper su Spring JdbcTemplate) per eseguire query SQL dai test Karate, pattern mutuato dalla testsuite govway.
+	Aggiunte dipendenze test spring-jdbc e postgresql al integration-test/pom.xml.
+	Aggiunto blocco govpayDbConfig in karate-config.js, parametrizzabile via -Dgovpay.db.url/username/password/driverClassName.
+
+	* [Build]
+	Fix step Generate Tomcat installer nella pipeline CI
+	In .github/workflows/maven.yml lo step "Generate Tomcat installer" invocava prepareSetup.sh con sh, ma il runner Ubuntu usa dash per /bin/sh: la sintassi array bash usata dallo script (WAR_FILES=("a" "b") con "${WAR_FILES[@]}") faceva fallire la pipeline con "Syntax error: ( unexpected". Invocato esplicitamente con bash per rispettare il shebang dello script.
+
+2026-05-13  Giuliano Pintori <pintori@link.it>
+
+	* Aggiornata versione software e data di rilascio in publiccode.yml: softwareVersion 3.9.1 -> 3.9.2, releaseDate 2026-05-15.
+
+	* [Build] Generazione SBOM CycloneDX nella pipeline CI
+	Aggiunto in .github/workflows/maven.yml un nuovo job sbom che esegue cyclonedx-maven-plugin 2.9.1 (makeAggregateBom, schema 1.6) e produce bom.cdx.json + bom.cdx.xml aggregati sull'intero reactor multi-modulo.
+	Il job gira su ogni push e PR in parallelo a build e osv_scan (stesso pattern di osv_scan, nessun filtro per branch); puo' essere disabilitato impostando la variabile DISABLE_SBOM_JOB=true.
+	L'SBOM viene caricato come artifact sbom-report e incluso nel ZIP dei report della release.
+
+2026-05-11  Giuliano Pintori <pintori@link.it>
+
+	* [Testsuite]
+	Corretti test backoffice intermediari basati su nomi di campi non corrispondenti al bean di risposta.
+	intermediari-get.feature: rinominato response.codIntermediario in response.idIntermediario (allineato al bean Intermediario).
+	intermediari-stazioni-get.feature: rimossa asserzione su response.idIntermediario non presente nel bean Stazione.
+	intermediari-stazioni-find.feature: sostituita asserzione response.risultati[0].idIntermediario con check su idStazione (StazioneIndex non espone idIntermediario); rifattorizzato lo Scenario Outline di validazione sintattica adottando il pattern '* def x = <value>' per evitare il doppio quoting che causava javascript evaluation failed sul valore ' *&'.
+
+	* [GovPayORM] Pulizia codice
+	Eliminati gli element XSD VistaEventiPagamento e VistaEventiRpt (alias di Evento) dai due govpay.xsd e i 20 file Java generati corrispondenti sotto it.govpay.orm.dao (I/IDB/JDBC service + search + Impl, FieldConverter, Fetch).
+	Aggiornati IServiceManager, JDBCServiceManager, JDBCLimitedServiceManager e gov_pay.dao.jdbc.properties rimuovendo getter e registrazioni di IVistaEventiPagamentoService/Search e IVistaEventiRptService/Search.
+
+	* [GovPayORM] Pulizia codice
+	Eliminato il modello ORM VersamentoIncasso e la vista DB versamenti_incassi, non piu' utilizzati.
+	Rimossi 11 file Java (~6.200 righe) sotto it.govpay.orm e it.govpay.bd.viste: VersamentoIncasso, VersamentoIncassoModel, IVersamentoIncassoServiceSearch, IDBVersamentoIncassoServiceSearch, JDBCVersamentoIncassoServiceSearch, JDBCVersamentoIncassoServiceSearchImpl, VersamentoIncassoFieldConverter, VersamentoIncassoFetch, VersamentiIncassiBD, VersamentoIncassoFilter, VersamentoIncassoConverter.
+	Aggiornati IServiceManager, JDBCServiceManager, JDBCLimitedServiceManager, BasicBD e gov_pay.dao.jdbc.properties rimuovendo getter, field, init e registrazione di IVersamentoIncassoServiceSearch.
+	Rimosso il complexType VersamentoIncasso dai due schemi govpay.xsd.
+	Rimossa la CREATE VIEW versamenti_incassi dai 5 baseline gov_pay.sql (postgresql, oracle, mysql, hsql, sqlserver) e la relativa DROP VIEW dai 5 drop.sql.
+	Aggiunto DROP VIEW versamenti_incassi nei patch 3.9.2.sql di tutti i dialetti per gli ambienti gia' installati.
+
+2026-05-10  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore, GovPayCoreBeans, GovPayORM, GovPayORMBeans, GovPayApiCommons, GovPayApiBackoffice, GovPayApiPendenze, GovPayApiRagioneria, GovPayClientApiEnte] Pulizia codice
+	Eliminato codice morto: rimossi 65 file Java non referenziati per un totale di circa 20.900 righe (~5.200 NCLOC).
+	Classi rimosse organizzate per categoria:
+	- Bean OpenAPI orfani: ListaPagamentiPortale, ListaTracciati, ListaDominiIndex, PagamentoPost, PagamentoIndex, RendicontazioneBase, RiferimentoCausale, RiferimentoIdentificativoFlussoRendicontazione, RiferimentoIdentificativoUnivocoVersamento, TipoAutenticazioneApiKey, TipoAutenticazioneBasic, TipoAutenticazioneHeader, TipoAutenticazioneOauth2ClientCredentials, TipoAutenticazioneSSL, DatiEntrataBollo, DatiEntrataCodice, DatiEntrataInline, NotificaAnnullamento.
+	- Spring authentication handler non registrati: LoggerSetupHandler, GovPayOidcUserService, GovPayOAuth2UserService, HardeningAntPathRequestMatcher, DefaultAuthenticationFailureHandler, GovPayAuthenticationSuccessHandler.
+	- Utility e business: CurrencyUtils, CtReceiptV2Converter, CSVSerializerProperties, NdpUtils, GPLWriter, UrlUtils, CheckoutClient, CheckoutUtils, GiornaleEventi.
+	- Eccezioni mai sollevate: PspNonTrovatoException, UtenzaNonTrovataException, RuoloNonTrovatoException, PagamentoPortaleNonTrovatoException, AvvisoNonTrovatoException, ParametriNonTrovatiException, ConfigurazioneNonTrovataException, ResponseValidationException, RequestValidationException.
+	- DTO orfani: DeleteOperatoreDTO, ListaMappingTipiEventoDTO, ListaMappingTipiEventoDTOResponse, PatchPendenzaDTOResponse, PagamentoPatchDTO.
+	- Bean obsoleti: EsitoTransazione, StatoTransazione, VersamentoKey, IuvGenerato, RichiestaStorno, EsitoAvvisatura, TracciatoSecim, EsitoVerificaVersamento, StatoRevoca, TipoIntervallo.
+	- ORM: it.govpay.bd.model.Canale, it.govpay.orm.model.ModelFactory, intero package it.govpay.orm.utils.serializer (AbstractSerializer, AbstractDeserializer, AbstractDeserializerWithFactory, JavaSerializer, JavaDeserializer, JaxbSerializer, JaxbDeserializer, JsonJacksonSerializer, JsonJacksonDeserializer non utilizzati: i Jackson serializer effettivi sono in org.openspcoop2.utils.serialization e it.govpay.core.utils.serialization).
+	Aggiornato spotbugs-exclude.xml rimuovendo l'esclusione orfana di AbstractSerializer.
+
+	* [GovPayCore, GovPayApiPendenze] Risoluzione segnalazioni Sonar
+	Refactoring di TracciatiNotificaPagamenti.creaLineaCsvFrGovPay (cognitive complexity da 27 a <15): suddiviso in tre metodi (creaLineeCsvDaFlussoXml, creaLineaCsvSenzaFlussoXml, formatData) e sostituite le ternary null-check con StringUtils.defaultString.
+	Refactoring di PendenzeConverter.fillSingoliVersamentiFromVociPendenza (cognitive complexity da 17 a <15): suddiviso in toSingoloVersamento e valorizzaDettaglioVocePendenza con early return.
+	Risolto S2629 in TracciatiNotificaPagamenti: estratta la chiamata a SimpleDateFormatUtils.format prima dello switch per evitare valutazione duplicata di argomenti di logging.
+
+	* [Build] Risoluzione segnalazioni Sonar githubactions:S8233
+	In .github/workflows/maven.yml spostati i permessi dal livello workflow al livello job seguendo il principio del least privilege: il job build ottiene contents:read; il job release mantiene contents:write/id-token:write/actions:write necessari a softprops/action-gh-release.
+
+	* [Testsuite]
+	Risolti errori dovuti a cache anagrafica non aggiornata in pendenza-put-metadata.feature e pendenza-put-tipoContabilita.feature: sostituito operazioni-resetCache con operazioni-resetCacheConSleep dopo modifiche di anagrafica per garantire la propagazione prima del caricamento pendenza.
+	Corretto pendenze-get-multibeneficiario.feature: allineata la sezione rt del JSON expected da idDominio_2 a idDominio_5 (era rimasta una occorrenza non aggiornata nel match della terminazione).
+
+2026-05-08  Giuliano Pintori <pintori@link.it>
+
+	* Rilascio versione 3.9.2
+
+	* [GovPayCore, GovPayApiBackoffice] Issue #836
+	Rimozione funzionalità
+	Eliminata la procedura interna di Recupero RT: il batch di recupero ricevute pendenti e' ora esclusivamente esterno.
+	Eliminate le classi RecuperoRT, RecuperoRTCheck, Ricevute, RecuperaRTThread, RecuperaRTNodoClient.
+	Rimossi gli scheduler Spring (batchRecuperoRTCheck, batchRecuperoRT) da applicationContext-timers.xml.
+	Rimosse property obsolete (it.govpay.batch.recuperoRT.enabled, it.govpay.batch.recuperoRT.modalita, it.govpay.batch.recuperoRT.limiteTemporaleRecupero, it.govpay.thread.pool.recuperoRT) dai filter properties e dal govpay.properties EAR.
+	Rimossi flag eseguiRecuperoRT/setEseguiRecuperoRT/getEseguiRecuperoRT da Operazioni.java; rimossa logica avviaRecuperoRT da Rendicontazioni.
+	Semplificato OperazioniDAO.recuperoRT (sempre esterno) e SondeConverter (sonda condizionata da batchOn).
+	Mantenuto Intermediario.connettorePddRecuperoRT (utilizzato dal batch esterno via DB GovPay).
+
+	* [Installer] Issue #836
+	Aggiornata configurazione installer per il batch Recupero RT: rimosso il checkbox "Batch Recupero RT" (sempre attivo in modalita' esterna), la pagina di configurazione URL e' ora sempre mostrata e obbligatoria con validazione regex http(s).
+	Allineato template_wildfly.filter.properties con template.filter.properties per la sezione recuperoRT.
+	Aggiunto fallback null-safe nello script Groovy di build.xml per evitare NPE in modalita' headless quando l'URL non e' specificato.
+
+	* [GovPayApiPendenze v1, GovPayClientApiEnte v1, GovPayCore] Issue #836
+	Risolto Bug
+	Risolto bug latente di v1 sul valore tipoContabilita "ENTRATA": il valore esposto dall'OpenAPI v1 non veniva piu' accettato a runtime perche' il modello commons usa "CAPITOLO".
+	Aggiunto nuovo metodo ValidatoreUtils.validaTipoContabilitaV1 per gestire l'alias legacy ENTRATA<->CAPITOLO senza impattare gli altri API.
+	Aggiunte traduzioni nei converter v1 (PendenzeConverter request/response e VerificaConverter request) per mantenere la simmetria del contratto API.
+
+2026-05-05  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiBackoffice, GovPayApiPendenze, GovPayApiRagioneria, GovPayClientApiEnte, GovPayCore, GovPayCoreBeans, GovPayORMBeans] Issue #856
+	Aggiunta funzionalità
+	Aggiunti i nuovi valori di tipoContabilita per il supporto al servizio SEPA Request To Pay (SRTP):
+	SRTP_ESCLUSA_RAVV_OPEROSO (codifica tassonomica 6), SRTP_ESCLUSA_ALTRO_OPERATORE (codifica 7), SRTP_ESCLUSA (codifica 8).
+	I nuovi prefissi consentono all'EC di escludere una posizione debitoria dalla veicolazione SRTP secondo le regole pagoPA.
+	Aggiornati gli enum TipoContabilita in tutti i moduli (model, core-beans, tracciati, client-api-ente, api-backoffice v1, api-pendenze v1/v2, api-ragioneria v1).
+	Aggiornati i converter EntrateConverter e DominiConverter per la gestione dei nuovi valori.
+	Aggiornate le specifiche OpenAPI (govpay-api-backoffice-v1.yaml, govpay-api-pendenze-v1.yaml, govpay-api-pendenze-v2.yaml, govpay-api-ragioneria-v1.yaml, govpay-api-ec-v1.yaml).
+	Aggiunti integration test Karate di caricamento e validazione sintattica per backoffice v1 e pendenze v1/v2, ed estesi i test esistenti su entrate ed entrate-dominio del backoffice.
+	Aggiunto scenario end-to-end con verifica del transferCategory (prefisso 6/7/8) in RPT/RT a seguito di un pagamento.
+
+	* [GovPayConsole] Issue #856
+	Aggiunta funzionalità
+	Aggiunti i nuovi valori di tipoContabilita SRTP_ESCLUSA_RAVV_OPEROSO, SRTP_ESCLUSA_ALTRO_OPERATORE, SRTP_ESCLUSA nelle mappe TIPI_CONTABILITA e TIPI_CONTABILITA_NUMERICHE di util.service.ts.
+	I nuovi valori sono ora selezionabili nelle form di censimento entrata ed entrata di dominio, e visualizzati con il prefisso tassonomico corretto (6/, 7/, 8/) nelle viste di pendenze e voci.
+
+	* [Testsuite]
+	Pulizia e consolidamento bunch riconciliazioni
+	Rimossi i file orfani utils/api/v2/ragioneria/bunch-riconciliazioni-v3.feature e utils/api/v3/ragioneria/bunch-riconciliazioni-v3.feature (mai referenziati).
+	Consolidate le tre copie identiche di bunch-riconciliazioni-v2.feature in un'unica versione canonica sotto utils/api/v1/ragioneria/, aggiornando i 26 caller di v2 e v3 al nuovo path.
+	Risolto bug in NumeroAvvisoBuilder.successivo(): aggiunto contatore AtomicLong tie-breaker per evitare collisioni di numero avviso/IUV tra chiamate effettuate nello stesso millisecondo, eliminando una causa di flakiness della testsuite (errori 022403 "IUV identifica piu' di un pagamento").
+
+2026-03-26  Giuliano Pintori <pintori@link.it>
+
+	* Rilascio versione 3.9.1
+
+	* Aggiornamento dipendenze di sicurezza
+	Aggiornato Spring Framework da 6.2.11 a 6.2.17 (CVE-2026-22735).
+	Aggiornato Spring Security da 6.5.4 a 6.5.9 (CVE-2026-22732).
+
+	* Issue #857
+	Corretto errore nella ricerca pendenze per id-dominio/iuv.
+	Corrette patch sql per valorizzazione campo fr.revisione.
+
+2026-03-20  Giuliano Pintori <pintori@link.it>
+
+	* Avanzamento versione a 3.9.1-SNAPSHOT
+
+	* [Installer] Issue #853
+	Aggiunta funzionalità
+	Aggiunta configurazione batch esterni nell'installer: ACA, FdR, Recupero RT, Verifica IBAN, Notifica Rendicontazioni.
+	Aggiunta pagina "Componenti Aggiuntivi" per la selezione dei batch da abilitare.
+	Aggiunte pagine di configurazione condizionali per l'inserimento della Base URL di ciascun batch.
+	Rimossa opzione "Visualizza Impostazioni Avanzate" dalle Informazioni Preliminari (sempre visibili).
+	Rimossa sezione basepathAPIBO dal build.xml (sostituita da batch.iban).
+	Aggiornato meccanismo di sostituzione properties con token @TOKEN@ nel properties-filler.
+
+	* [GovPayCore] Issue #853
+	Aggiunta funzionalità
+	Aggiunto supporto batch Notifica in GovpayConfig: fields, defaults, lettura properties e getters.
+	Aggiunto supporto batch Notifica in BatchUtils: attivazione, stato, ultima/prossima esecuzione, clear cache.
+	Aggiunte costanti BATCH_NOTIFICA in Operazioni e TipoDestinatario.
+
+	* [Filtri di compilazione]
+	Aggiunta funzionalità
+	Aggiunte properties batch Notifica a tutti i filter di compilazione.
+	Aggiunte properties batch Recupero RT, IBAN, Maggioli ai filter wildfly e installer_wildfly.
+	Aggiunta connectionRequestTimeout batch Notifica a govpay.properties.
+
+	* [Documentazione]
+	Aggiornata documentazione installer con nuove schermate (INS09-INS14).
+	Aggiunti riferimenti ai progetti govpay-rt-batch, govpay-iban-batch e govpay-notifica-batch.
+
+2026-03-07  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayORM, GovPayDB]
+	Aggiunta funzionalità #853
+	Aggiunta colonna notifica_inviata alla tabella rendicontazioni per supporto al nuovo batch di notifica.
+	Aggiornato modello ORM Rendicontazione, converter, field converter, fetch e servizi JDBC.
+	Aggiunte patch SQL 3.9 per tutti i database supportati (PostgreSQL, Oracle, MySQL, HSQL, SQL Server).
+
+	* [GovPayApiBackoffice]
+	Risolto Bug
+	Corretta validazione pattern email/pec nei bean DominioPost, UnitaOperativaPost e Soggetto.
+	Allineata regex al pattern pagoPA stEMail. Sostituita regex hardcoded con costante CostantiValidazione.PATTERN_EMAIL.
+
+2026-02-26  Giuliano Pintori <pintori@link.it>
+
+	* Rilasciata versione 3.9.0
+
+2026-02-25  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiBackoffice, GovPayORM]
+	Aggiunta funzionalità #851
+	Aggiunta persistenza del campo dataUltimaRT nella configurazione del connettore Maggioli JPPA.
+	Aggiunto mapping nel converter ConnettoreNotificaPagamentiMaggioliJPPAConverter per la deserializzazione del campo dalla request.
+	Aggiunta impostazione del campo dataUltimaRt nel record JppaConfig durante la creazione e l'aggiornamento del dominio in DominiBD.
+	Aggiunta annotazione @JsonFormat per la corretta serializzazione/deserializzazione del timestamp nel bean ConnettoreNotificaPagamentiMaggioliJPPA.
+
+	* [IntegrationTest]
+	Aggiunta funzionalità #851
+	Aggiornato test rpp-recuperoRT.feature: modificato tipoEvento da getOrganizationReceiptIur a getOrganizationReceiptIuvIur.
+	Aggiornati parametri di ricerca eventi GDE da idA2A/idPendenza a idDominio/iuv.
+	Aggiornata URL attesa per la verifica della richiesta con il path /paymentoptions/{iuv}.
+	Resi opzionali i campi idA2A, idPendenza, sottotipoEsito e datiPagoPA nei match di verifica degli eventi.
+
+	* [IntegrationTest]
+	Aggiunta funzionalità
+	Aggiornato test modello3-pagamento-maggioli-italset.feature: aggiunta impostazione del campo dataUltimaRT
+	nella configurazione del connettore Maggioli con il timestamp di inizio esecuzione del test.
+
+2026-02-18  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayDB]
+	Risolto Bug
+	Fix patch 3.8.2.sql per Oracle. Aggiunte risorse mancanti.
+
+2026-02-11  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiBackoffice, GovPayORM, GovPayDB] Issue #852
+	Aggiunta funzionalità
+	Aggiunta gestione del connettore verso il servizio backoffice EC di pagoPA.
+	Aggiornato modello ORM Intermediario, converter, servizi JDBC e schema DB.
+	Aggiunte patch SQL 3.9 per tutti i database supportati (PostgreSQL, Oracle, MySQL, HSQL, SQL Server).
+	Aggiornati test di integrazione per i nuovi connettori intermediario.
+
+	* [GovPayCore, GovPayApiPagoPA] Issue #851
+	Aggiunta funzionalità
+	Supporto al batch RT: aggiunta nuova colonna esegui_recupero_rt alla tabella rendicontazioni.
+	Aggiunta autorizzazione accesso batch alle API-PagoPA.
+	Aggiunta possibilita' di invocare il batch recupero RT esterno dal cruscotto.
+	Aggiornata configurazione GovpayConfig, BatchUtils, OperazioniDAO e TipoDestinatario.
+
+2026-02-10  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayORM] Issue #851
+	Aggiunta funzionalità
+	Aggiunta colonna esegui_recupero_rt per supporto al batch di recupero RT.
+
+	* [GovPayORM]
+	Risolto Bug
+	Corretto bug gestione parametro ordinamento nella lista dei flussi di rendicontazione.
+
+2026-02-09  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Fix segnalazioni sonar.
+
+2026-02-06  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore, GovPayORM, IntegrationTest] Issue #837
+	Aggiunta funzionalità
+	Aggiunto supporto alle nuove tabelle del batch Maggioli (JppaConfig).
+	Eliminato servizio SOAP Maggioli deprecato.
+	Risolta vulnerabilita' CVE-2025-7962.
+	Aggiornati test di integrazione per il connettore Maggioli JPPA.
+
+	* Corretto script prepareSetup.sh eliminando i riferimenti al WAR JPPA non piu' presente.
+
+2026-02-03  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore, GovPayApiPagoPA] Issue #837
+	Aggiunta funzionalità
+	Eliminato WS Jppa-PDP e servizio di spedizione notifiche SOAP.
+	Rimosso modulo jppapdp-beans e relativi riferimenti.
+	Aggiornati EventoContext, GovpayConfig, Operazioni, TipoDestinatario e ThreadExecutorManager.
+
+2026-01-30  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayORM, GovPayCore, GovPayApiPagamento, GovPayConsole, Database]
+	Aggiunta funzionalità #836
+	Rimosso il supporto al Modello 1 pagoPA (nodoInviaCarrelloRPT) e alle API-Pagamento.
+	Rimosse tabelle pagamenti_portale e pag_port_versamenti.
+	Rimossa vista v_pagamenti_portale.
+	Rimossi model PagamentoPortale, PagamentoPortaleVersamento e VistaPagamentoPortale.
+	Eliminate API-Pagamento e WebConnector non piu' necessarie.
+	Rimossa possibilita' di abilitare la sezione pagamenti nel cruscotto.
+	Eliminati riferimenti alla primitiva nodoInviaCarrelloRPT.
+	Aggiornati script di creazione db e aggiunte patch 3.9.
+	Rivisti test di integrazione.
+
+	* [GovPayCore]
+	Aggiunta funzionalità #841
+	Aggiunta possibilita' di configurare il numero di notifiche da assegnare ad ogni thread di spedizione.
+	Nuova proprieta': it.govpay.batch.notifiche.perThread
+
+2026-01-27  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole] Issue #847
+	Risolto Bug
+	Aggiunta proprieta' mancante al file di configurazione della console.
+
+2026-01-07  Giuliano Pintori <pintori@link.it>
+
+	* Rilasciata versione 3.8.2
+
+2026-01-07  Giuliano Pintori <pintori@link.it>
+
+	* [IntegrationTest]
+	Aggiunta funzionalità
+	Aggiunti test di integrazione per le sonde di monitoraggio GovPay (endpoint /sonde).
+	Creato sonde-get.feature con 23 scenari per verificare tutte le sonde disponibili:
+	check-db, check-ntfy, check-tracciati, spedizione-promemoria, check-promemoria,
+	check-ntfy-appio, check-gestione-promemoria, check-elab-trac-notif-pag,
+	check-spedizione-trac-notif-pag, check-riconciliazioni, check-rpt-scadute,
+	check-recupero-rt, spedizione-trac-notif-pag, elaborazione-trac-notif-pag,
+	riconciliazioni, caricamento-tracciati, update-rnd, gestione-promemoria,
+	update-ntfy-appio, update-ntfy, rpt-scadute, recupero-rt.
+
+	* [IntegrationTest]
+	Aggiunta funzionalità
+	Aggiunti test di integrazione per le operazioni backoffice (endpoint /operazioni).
+	Creato operazioni-find.feature con scenari per lista operazioni e invocazione
+	delle operazioni chiusuraRptScadute, elaborazioneRiconciliazioni e inviaPosizioniDebitorieAca.
+
+	* [IntegrationTest]
+	Risolto Bug
+	Corretti test di riconciliazione che fallivano con errore 422 "Flusso rendicontazione non trovato".
+	Aggiunto sleep(10000) dopo l'acquisizione rendicontazioni per permettere l'elaborazione batch.
+	Modificati bunch-riconciliazioni.feature e bunch-riconciliazioni-v3.feature in v1, v2, v3.
+
+	* [IntegrationTest]
+	Risolto Bug
+	Corretti test di autorizzazione riconciliazioni che fallivano con errore 403.
+	Aggiunto ripristino configurazione applicazione originale prima di ogni scenario
+	in riconciliazione-autorizzazione.feature.
+
+	* [GovPayConsole]
+	Risolto Bug
+	Corretta visualizzazione della form di login quando si clicca sul link 'Cruscotto' da utente autenticato.
+	Il problema era causato dal caching delle route (ListReuseStrategy) che manteneva lo stato hasAuthentication=false
+	dopo eventuali errori 401/403 su altre pagine. Modificata la subscription a profiloUtenteBehavior in
+	dashboard-view.component.ts per reinizializzare il dashboard anche quando il profilo è disponibile.
+
+	* [Documentazione]
+	Aggiunta funzionalità
+	Aggiunta sezione "Componenti Aggiuntivi" alla documentazione di installazione/configurazione.
+	Documentati i componenti opzionali: govpay-aca-batch, govpay-fdr-batch e govpay-gde-api.
+
+2025-12-18  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug
+	Corretto errore nel giornale eventi durante l'invio dei tracciati di notifica pagamenti via email.
+	Il sistema registrava erroneamente esito OK anche in caso di fallimento dell'invio (es. email troppo grande).
+	Modificato SpedizioneTracciatoNotificaPagamentiThread per propagare correttamente le eccezioni nei metodi inviaTracciatoViaEmail, salvaTracciatoSuFileSystem e inviaTracciatoViaAPIRest.
+
+	* [GovPayCore]
+	Risolto Bug
+	Corretto errore nell'invocazione dei batch esterni che generava URL con trailing slash causando HTTP 404.
+	Modificato BasicClientCORE per evitare l'aggiunta dello slash finale quando il path è vuoto o nullo.
+
+	* [GovPayCore, GovPayApiBackoffice, GovPayConsole]
+	Aggiunta funzionalità
+	Rinominato parametro di forzatura esecuzione batch da 'forzaEsecuzione' a 'force' per coerenza con convenzioni API REST.
+	Modificati: BatchClient, BatchUtils, OperazioniController, OperazioniDAO, LeggiOperazioneDTO, Operazioni (endpoint REST).
+	Aggiornato schema OpenAPI govpay-api-backoffice-v1.yaml.
+	Aggiornato frontend Angular della console (app.component.ts).
+
+	* [IntegrationTest]
+	Aggiunta funzionalità #821
+	Aggiornato schema di test Karate per flussi di rendicontazione con i nuovi campi dataOraPubblicazione e dataOraAggiornamento.
+
+2025-12-10  Giuliano Pintori <pintori@link.it>
+
+	* [Build, Sicurezza]
+	Risoluzione vulnerabilità CVE-2025-66453
+	Aggiornata dipendenza rhino alla versione 1.7.15.1 per risolvere vulnerabilità DoS nella funzione toFixed().
+	Aggiunta property rhino.version nel pom.xml per gestione centralizzata della versione.
+
+	* [Documentazione]
+	Aggiornamento documentazione
+	Aggiunti avvisi di deprecazione per il Modello 1 pagoPA (dismissione prevista a marzo 2026) nelle sezioni:
+	- docs/scenari/dovuto1/index.rst e realizzazione.rst
+	- docs/scenari/spontaneo1/index.rst e realizzazione.rst
+	- docs/integrazione/api/index.rst
+	Corretti riferimenti per puntare alla nuova procedura (Pagamenti ad iniziativa ente - Modello Unico).
+
+	* [GovPayORM, Database]
+	Aggiunta funzionalità #821
+	Aggiunto indice idx_domini_scarica_fr sulla colonna scarica_fr della tabella domini per ottimizzare le query di ricerca domini abilitati.
+	Aggiunto vincolo unique_fr_2 (cod_dominio, cod_flusso, cod_psp, revisione) sulla tabella FR per verificare univocità dei flussi di rendicontazione.
+	Aggiornate patch SQL per tutti i database supportati (PostgreSQL, Oracle, MySQL, SQL Server, HSQL).
+	Aggiornati file XSD schema (govpay.xsd).
+
+2025-11-18  Giuliano Pintori <pintori@link.it>
+
+        * [GovPayORM]
+        Aggiunta funzionalità #821
+	Aggiunta colonna id_dominio alla tabella FR.
+
+2025-11-17  Giuliano Pintori <pintori@link.it>
+
+        * [GovPayConsole, GovPayApiBackoffice]
+        Aggiunta funzionalià #825
+        Aggiunta possibilita' di configurare da cruscotto il connettore per il microservizio GDE.servizi pagoPA per ACA e Acquisizione FR.
+
+2025-11-10  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole, GovPayApiBackoffice]
+	Aggiunta funzionalià #825
+	Aggiunta possibilita' di configurare da cruscotto i servizi pagoPA per ACA e Acquisizione FR.
+
+2025-11-07  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Aggiunta funzionalità #821
+	Aggiunta funzionalita' per ricostruire il tracciato xml quando l'xml non e' presente sul db.
+	Corretti test in errore. Aggiunti campi mancanti nella query lista.
+
+2025-11-07  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Aggiunta funzionalità
+	Aggiunta gestione del fallimento del quality gate.
+	Migliorata gestione del salvataggio delle evidenze,  aggiunta versione del rilascio e data.
+
+2025-11-06  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug
+	Corretto nome del batch recuperoRT all'interno del file applicationContext-timers.xml.
+	Cambiata schedulazione da una volta all'ora ad una volta ogni mezzora.
+
+2025-11-04  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayORM]
+	Aggiunta funzionalità #821
+	Aggiunte colonne dataOraPubblicazione,  dataOraAggiornamento e revisione alla tabella FR.
+	Eliminato vincolo obbligatorieta' della colonna xml della tabella FR.
+
+2025-10-31  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore, GovPayConsole, GovPayApiBackoffice]
+	Aggiunta funzionalità #820
+	Aggiunta gestione del campo scaricaFr che indica se scaricare i flussi di rendicontazione per un EC.
+	Aggiunto campo al db,  alle API-Backoffice.
+	Aggiunta possibilita' di visualizzarlo e configurarlo sul cruscotto di gestione.
+	Aggiunti test di verifica di configurazione.
+
+2025-10-30  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayORM, Database]
+	Risolto Bug #819
+	Vista rendicontazioni restituisce risultati multipli.
+	Aggiunto alla lista degli ordinamenti di default per la vista rendicontazioni anche quello per iuv.
+	Aggiunto supporto per ordinamento da API per iuv,  iur.
+	Aggiunto indice sulla data delle rendicontazioni.
+	Aggiunte patch db per versione 3.8.2.
+
+2025-10-28  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayORM]
+	Risolto Bug #818
+	Campo pendenzaTipo mancante nella lista RPT ottenuta tramite la vista v_rpt_versamenti.
+	Aggiunto campo mancante versamenti.tipo all'elenco dei field della vista v_rpt_versamenti.
+	Corretti set versamento.id nei converter delle viste.
+
+2025-10-10  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiCommons]
+	Aggiunta funzionalità #816
+	Aggiunto validatore generico per ogni tipo di claim JWT.
+	Mantenuti come default i validatori di iss e aud.
+
+2025-10-09  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiCommons]
+	Aggiunta funzionalità #816
+	Aggiunta possibilita' di verificare issuer e audience del token JWT OAuth2.
+
+2025-09-29  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug #815
+	Verificato corretto funzionamento della procedura di acquisizione rendicontazioni in caso di dominio non censito in base dati.
+	Il problema era gia' stato corretto durante gli sviluppi della versione 3.8.1.
+	Aggiunti log per maggiori informazioni sul flusso gestito.
+	Corretto diagnostico non valido in caso di dominio non intermediato.
+
+2025-09-24  Giuliano Pintori <pintori@link.it>
+
+	* Rilasciata versione 3.8.2-SNAPSHOT
+
+2025-09-23  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Risolto Bug
+	Corretto errore di autenticazione nell'utilizzo dei servizi Ossindex per la verifica delle vulnerabilita'.
+
+2025-09-23  Giuliano Pintori <pintori@link.it>
+
+	* Rilasciata versione 3.8.1
+
+2025-09-22  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Risolto Bug
+	Gestita vulnerabilita' CVE-2025-10492 come falso positivo.
+
+2025-09-18  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug
+	Correzione messaggi eccezione govpayException.
+
+2025-09-18  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiCommons]
+	Risolto Bug
+	Correzioni allo schema API-Ente V2.
+
+2025-09-17  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Risolto Bug
+	Risoluzione vulnerabilita' delle librerie spring e spring-security.
+	Risoluzione errori testsuite dovuti ai messaggi errati delle GovPayException.
+
+2025-09-16  Giuliano Pintori <pintori@link.it>
+
+	* [Build, IntegrationTest]
+	Aggiunta funzionalità
+	Attivita' di rilascio 3.8.1.
+	Ripristinata esecuzione completa della testsuite.
+	Aggiunto badge quality gate sonar.
+
+2025-09-09  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole]
+	Risolto Bug
+	Risolto problema CORS durante la logout oauth2 federata.
+
+2025-09-05  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug
+	Corretto messaggio errore attivazione pagamento se servizio di verifica va in timeout.
+	Corretto messaggio diagnostico verifica pendenza.
+	Risoluzione segnalazioni sicurezza sonar.
+	Risoluzione segnalazioni codice duplicato.
+	Eliminato codice non utilizzato dal servizio WebController.
+	Aggiunta validazione generica dei parametri.
+
+2025-09-04  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole]
+	Risolto Bug #796
+	Corretta visualizzazione dei dati custom di una pendenza.
+
+2025-09-03  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Aggiunta funzionalità #798
+	Aggiunto supporto per la valorizzazione dei placeholder da variabile d'ambiente per le configurazioni di sicurezza dei servizi.
+
+2025-09-03  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiPagopa]
+	Aggiunta funzionalità #792
+	Aggiunta ottimizzazione della chiamata paVerifyPaymentNotice che intercetta le chiamate della sonda pagoPA
+	evitando accessi al DB e ai servizi di verifica dell'applicativo.
+	Aggiunti test per la verifica del check della sonda pagoPA.
+
+2025-09-02  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Risolto Bug #791
+	Aggiornate librerie op2 ed eliminazione dipendenza commons-lang per la risoluzione della vulnerabilita' 2025-48924.
+	Aggiornate librerie terze parti.
+
+2025-08-14  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Aggiunta funzionalità #795
+	Aggiunta action per la validazione file publiccode.yml.
+	Risolti errori di validazione del file publiccode.yml.
+
+2025-08-06  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiPagopa]
+	Risolto Bug #793
+	Corretta valorizzazione hashDocumento della marca da bollo per la primitiva paGetPaymentV2.
+	Corretta funzione di retrocompatibilita' messaggi V1.
+	Aggiunto test di verifica dell'hashdocumento.
+
+2025-07-31  Giuliano Pintori <pintori@link.it>
+
+	* [IntegrationTest]
+	Aggiunta funzionalità #791
+	Aggiunti test per verifica spedizione promemoria con server mail su docker.
+	Aggiunto test verifica spedizione ricevuta pagamento via mail.
+	Aumentata copertura codice API-Pagamento.
+	Eliminato codice non utilizzato.
+
+2025-07-24  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug #790
+	Corretto problema invio mail con allegati utilizzando le librerie jakarta-mail.
+
+2025-07-08  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug #786
+	Corretto errore nella decodifica di un campo xsddate che contiene un offset.
+
+2025-07-04  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole]
+	Aggiunta funzionalità #785
+	Aggiunta possibilita' di indicare un file di configurazione della console esterno al war.
+
+2025-07-04  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Aggiunta funzionalità #784
+	Aggiunta dipendenza mancante jackson-datatype-joda.
+	Aggiunta licenza per la libreria jackson-datatype-joda-2.18.3.
+
+2025-06-24  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole]
+	Risolto Bug #783
+	Corretto filtro per gestire il redirect della authCallback in presenza di un frontend.
+
+2025-06-09  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiBackoffice]
+	Risolto Bug
+	Corretto response code del servizio di dettaglio ricevuta.
+	Corretto esempio json ricevuta.
+
+2025-06-03  Alfonso Tatarelli <a.tatarelli@gmail.com>
+
+	* [GovPayCore]
+	Aggiunta funzionalità #781
+	Aggiunta possibilità di configurare la validazione pattern di un campo come warning.
+
+2025-05-29  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Aggiunta funzionalità #781
+	Aggiornato pattern validazione del campo debitore per supportare i cf omocodici.
+
+2025-05-29  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Aggiunta funzionalità
+	Avanzamento versione spring-security 6.4.6.
+
+2025-05-29  Giuliano Pintori <pintori@link.it>
+
+	* Rilasciata versione 3.8.1-SNAPSHOT
+
+2025-04-18  Alfonso Tatarelli <a.tatarelli@gmail.com>
+
+	* [GovPayConsole]
+	Risolto Bug #772
+	Risoluzione vulnerabilità console: aggiornato "papaparse" alla versione 5.5.2.
+
+2025-04-09  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug
+	Corretto problema gestione pendenze per dominio non intermediato in fase di acquisizione delle rendicontazioni.
+	Corretto errore interruzione acquisizione flusso rendicontazione in caso di errore in acquisizione pendenza da servizio di verifica.
+
+2025-04-04  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Aggiunta funzionalità #770
+	Aggiunta data tentativo di pagamento per transazione V2 nel dettaglio pendenza.
+	Corretta deserializzazione date con offset.
+
+2025-03-26  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayStampe]
+	Risolto Bug
+	Corretto errore nella stampa avvisi.
+
+2025-03-24  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug
+	Aggiunto idDominio ai dati salvati dal GDE nella ricerca flussi rendicontazione.
+	Corretta colonna indice da utilizzare in caso di ricerca ricevute.
+
+2025-03-19  Giuliano Pintori <pintori@link.it>
+
+	* Rilasciata versione 3.8.0
+
+2025-03-17  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiBackoffice]
+	Risolto Bug #758
+	Corretti messaggi errore Ricevuta gia' presente.
+
+2025-03-17  Alfonso Tatarelli <a.tatarelli@gmail.com>
+
+	* [GovPayConsole]
+	Aggiunta funzionalità #758
+	Aggiunta al cruscotto la possibilità di caricare le ricevute.
+
+2025-02-24  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiRagioneria]
+	Aggiunta funzionalità #767
+	Aggiunta possibilita' di scaricare la RT in formato pdf nelle API-Ragioneria V3.
+
+2025-01-27  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiBackoffice]
+	Risolto Bug #766
+	Parametro idFlusso case insensitive per la ricerca dei flussi di rendicontazione delle API-Backoffice.
+
+2025-01-03  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug #753
+	Corretto errore configurazione intermediario con servizio recupero RT non definito.
+
+2024-12-16  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiPagamento]
+	Aggiunta funzionalità #762
+	Aggiunta possibilita' di personalizzare la url dei servizi all'interno delle risorse json.
+
+2024-12-12  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore, Database]
+	Risolto Bug #759
+	Corretto algoritmo per decidere quando una pendenza passa in stato riconciliata.
+	Aggiunte istruzioni per correggere lo stato delle pendenze riconciliate che contengono voci MBT o altro intermediario.
+
+2024-12-10  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiCommons]
+	Aggiunta funzionalità #761
+	Aggiunta autenticazione Oauth2 ai servizi erogati da GovPay.
+
+2024-12-05  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore, IntegrationTest]
+	Risolto Bug #758
+	Corretta procedura acquisizione ricevute.
+	Aggiunti test per la verifica del caricamento delle ricevute SANP 2.3.0.
+
+2024-12-04  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug #760
+	Corretti refusi nei messaggi di errore delle rendicontazioni.
+
+2024-11-26  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiBackoffice]
+	Aggiunta funzionalità #758
+	Aggiunta nuova operazione POST /ricevute allo schema API-Backoffice.
+
+2024-11-22  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore, IntegrationTest]
+	Aggiunta funzionalità #753
+	Aggiornato schema FlussoRiversamento_1_0_4.xsd per gestire le rendicontazioni di pagamenti effettuati tramite standin.
+	Aggiunto case test per verificare acquisizione rendicontazioni per pagamenti tramite standin.
+	Aggiunto case test per la gestione del recupero di una RT Modello1.
+
+2024-11-21  Giuliano Pintori <pintori@link.it>
+
+	* Rilasciata versione 3.7.9-SNAPSHOT
+
+2024-11-19  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug #731
+	Completata rimozione generazione IUV non numerici.
+
+2024-11-14  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore, GovPayORM, IntegrationTest]
+	Aggiunta funzionalità #753
+	Integrate le nuove API Rest di recupero Ricevute.
+	Rivisto check che decide se la rendicontazione appartiene ad un dominio esterno.
+	Esclusa la procedura che tenta il recupero tramite le vecchie API SOAP.
+	Aggiunta possibilita' di configurare nell'intermediario la connessione verso il servizio di recupero ricevute.
+	Eliminata tabella RR non piu' usata.
+	Aggiunta funzione BD per leggere le rendicontazioni senza pagamento.
+	Aggiunta struttura batch recupero rt.
+	Aggiunti test case per la verifica della configurazione dell'intermediario.
+	Completato merge della issue #603 con l'eliminazione della tabella IUV.
+
+2024-10-29  Giuliano Pintori <pintori@link.it>
+
+	* Rilasciata versione 3.7.8
+
+2024-10-28  Giuliano Pintori <pintori@link.it>
+
+	* [IntegrationTest, Build]
+	Aggiunta funzionalità #748
+	Corretta gestione streaming su tomcat con db postgresql.
+	Corretta gestione dipendenze jar mancanti su tomcat.
+	Spostati timers all'interno del war backoffice.
+	Aggiunto shutdown risorse per tutti i war.
+	Corretti file di configurazione della testsuite per esecuzione su tomcat.
+	Aggiunta classe con reader utenze tomcat.
+
+2024-10-02  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiBackoffice]
+	Risolto Bug #742
+	Aggiunto filtro per idDominio al servizio /rendicontazioni del backoffice.
+	Corretto errore impostazione filtro per dominio associato nella ricerca degli FR.
+
+2024-09-25  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole, GovPayCore]
+	Risolto Bug #745
+	Corretta gestione del filtro IUV/NAV nella schermata del giornale degli eventi.
+	Corretta procedura per la decisione dell'operazione di verifica da utilizzare nel caso in cui sia impostata la proprieta' che vincola l'operazione ma non i parametri necessari.
+
+2024-09-24  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiPagopa, Build]
+	Risolto Bug
+	Risolte segnalazioni dipendenze librerie spring-expression e spring-web.
+	Corretti errori nei placeholder dei messaggi diagnostici per paGetPayment e paSendRT.
+	Corretto errore placeholder messaggio diagnostico errore in inoltro pendenza modello 4.
+
+2024-09-17  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug #741
+	Eliminato errore in fase di init del connettore.
+
+2024-09-13  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Aggiunta funzionalità #741
+	Aggiunta possibilita' di configurare diversi timeout per i diversi connettori.
+
+2024-09-03  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug #738
+	Impostato valore di default per il parametro indiceDati quando non presente nella rendicontazione originale.
+
+2024-08-15  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Aggiunta funzionalità #720
+	Aggiornate licenze terze parti.
+
+2024-08-10  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Aggiunta funzionalità #725
+	Aggiunta esecuzione plugin spotbugs.
+	Aggiornato maven.
+	Aggiornato jenkinsfile per visualizzazione risultati scan dipendenze.
+
+2024-08-08  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiPagamento]
+	Aggiunta funzionalità #734
+	Aggiunta generazione di iuv e nav per le pendenze che non li hanno prima dell'invio al checkout.
+
+2024-07-30  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiPagamento]
+	Aggiunta funzionalità #734
+	Aggiunta possibilita' di invocare il checkout ed avere in risposta il json o il redirect.
+
+2024-07-29  Giuliano Pintori <pintori@link.it>
+
+	* [Installer]
+	Aggiunta funzionalità #720
+	Aggiornate librerie installer.
+	Eliminate librerie installer non necessarie.
+	Corretti script dopo aggiornamento nomi jar.
+
+2024-07-26  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Aggiunta funzionalità #720 #725
+	Aggiornato plugin owasp. Risolte segnalazioni dopo scan.
+	Aggiornata versione cxf dopo esecuzione plugin owasp.
+
+2024-07-26  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole, GovPayCore, GovPayStampe]
+	Risolto Bug #728
+	Aggiunta label 'Anomala' mancante per le pendenze.
+	Aggiunta informazione Descrizione Stato nel dettaglio pendenza in stato anomala.
+	Rilasciato vincolo per il quale non veniva generato un numero avviso per pendenze con pagamento di MBT.
+	Eliminata stampa del pdf per le pendenze con MBT.
+
+2024-07-17  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Risolto Bug #727 #720
+	Corretto campo utilizzato per validare lo schema utilizzato per validare i portali backoffice e pagamento.
+	Aggiunto log per segnalare RPT rifiutata nodo.
+	Corretta validazione del template di validazione portali.
+
+2024-07-15  Giuliano Pintori <pintori@link.it>
+
+	* [Build]
+	Aggiunta funzionalità #725
+	Aggiornato plugin owasp.
+
+2024-07-11  Giuliano Pintori <pintori@link.it>
+
+	* Rilasciata versione 3.7.8-SNAPSHOT
+
+2024-07-08  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayStampe, GovPayCore]
+	Risolto Bug #720
+	Corretta classe da utilizzare con la proprieta': net.sf.jasperreports.xpath.executer.factory.
+	Risolti problemi namespace marshaller stampe.
+	Corretto set proprieta' marshaller.
+
+2024-07-04  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayORM]
+	Aggiunta funzionalità #720
+	Allineato livello orm all'implementazione generata con il generatore 3.4.x.
+	Corretti tipi campi importo update versamento.
+	Corretti tipi query estrazione statistiche.
+
+2024-03-05  Giuliano Pintori <pintori@link.it>
+
+	* Rilasciata versione 3.7.7-SNAPSHOT
+
+2024-02-28  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Aggiunta funzionalità #692
+	Aggiunte voci metadata nelle voci pendenza nel dettaglio di una riconciliazione e di un flusso di rendicontazione.
+
+2024-02-20  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole]
+	Risolto Bug #692
+	Corretto errore in visualizzazione delle ricevute con metadata.
+
+2024-02-19  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore, IntegrationTest]
+	Aggiunta funzionalità #692
+	Aggiunta gestione dei metadata custom per tutte le API-REST.
+	Aggiunti test per il caricamento,  verifica errori di sintassi,  lettura e pagamento di una pendenza con metadati custom.
+	Aggiunti test di validazione sintattica metadata per le pendenze scaricate tramite le API-Ente.
+
+2024-02-19  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore, GovPayConsole]
+	Aggiunta funzionalità #573
+	Aggiunti campi informazioni ACA ai dati restituiti dal backoffice.
+
+2024-02-15  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiCommons]
+	Aggiunta funzionalità #692
+	Aggiornati schemi yaml,  aggiunto elemento metadata.
+
+2024-02-06  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayORM]
+	Aggiunta funzionalità #573
+	Aggiunto supporto per memorizzare le informazioni relative all'invio delle pendenze all'archivio centralizzato avvisi.
+	Creata vista per raccogliere le pendenze da inviare.
+
+2023-12-11  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayStampe]
+	Aggiunta funzionalità #621
+	Aggiunta possibilita' di indicare una data scadenza da inserire nell'avviso di pagamento che sovrascrive quella prevista dalla normale procedura di valorizzazione basata su dataValidita,  dataScadenza e numeroGiorni impostato nelle properties.
+
+2023-11-27  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiPagopa]
+	Risolto Bug #652
+	Corretta valorizzazione modello di pagamento nei datiPagoPA per l'operazione PaaInviaRT.
+
+2023-11-24  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore, GovPayORM]
+	Aggiunta funzionalità #652
+	Aggiunta valorizzazione del modello pagamento del giornale eventi per il modello unico.
+	Modificata definizione della colonna tipo_versamento della tabella RPT per allinearla alla definizione del pagamento V2.
+	Eliminata gestione del campo rpt.tipoVersamento come enum per gestire le stringhe libere che possono essere ricevute da PagoPA.
+	Corrette funzioni per la conversione dei messaggi nel vecchio formato.
+
+2023-11-17  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiPagopa]
+	Risolto Bug #652
+	Corretta valorizzazione del campo datiPagoPA.datiVersamento per le primitive paGetPayment e paGetPaymentV2.
+	Corretta valorizzazione del campo evento.datiPagoPA.tipoVersamento per le primitive PaSendRT e PaSendRTV2.
+
+2023-11-16  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole]
+	Aggiunta funzionalità #642
+	Eseguita integrazione lavoro sulla console angular nel processo di compilazione della console.
+	Eseguiti test di login tramite oauth2 con la configurazione della sicurezza da file esterni.
+
+2023-11-07  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiBackoffice, GovPayConsole]
+	Aggiunta funzionalità #642
+	Aggiunta modalita' di autenticazione OAuth2 alle API-Backoffice.
+	Prima parte delle modifiche alla console per supportare l'autenticazione OAuth2 Authorization_code + PKCE.
+
+2023-10-18  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Aggiunta funzionalità #604
+	Allineati schemi SANP 3.6.0.
+
+2023-10-16  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayStampe]
+	Risolto Bug #627
+	Corretta gestione delle risorse per la stampa condivise tra i thread di stampa.
+
+2023-10-10  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayCore]
+	Aggiunta funzionalità #633
+	Aggiunta possibilita' di disattivare tutti i batch del sistema.
+
+2023-10-09  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayApiCommons]
+	Aggiunta funzionalità #631
+	Aggiunta configurazione,  utilizzo e test per l'autenticazione tramite API-Key in erogazione e fruizione.
+
+2023-08-31  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole]
+	Aggiunta funzionalità #601
+	Modificato ordine delle voci del menu'.
+	Corrette label nel dettaglio pendenza e riconciliazione.
+
+2023-08-31  Alfonso Tatarelli <a.tatarelli@gmail.com>
+
+	* [GovPayConsole]
+	Aggiunta funzionalità #601
+	Realizzata maschera di dettaglio ricevuta.
+
+2023-08-03  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole]
+	Aggiunta funzionalità #601
+	Realizzata maschera di ricerca ricevute.
+
+2023-08-02  Giuliano Pintori <pintori@link.it>
+
+	* [GovPayConsole]
+	Aggiunta funzionalità #592
+	Aggiunta proprieta' per pilotare la visualizzazione della voce menu' Pagamenti e dei Badge di controllo nella dashboard.
+	Il default prevede che queste funzionalita' siano nascoste.
+
+2023-08-01  Giuliano Pintori <pintori@link.it>
+
+	* [Database]
+	Aggiunta funzionalità
+	Aggiunti indici mancanti tabelle eventi ed rpt.
+
+2023-08-01  Giuliano Pintori <pintori@link.it>
+
+	* Rilasciata versione 3.8.0-SNAPSHOT

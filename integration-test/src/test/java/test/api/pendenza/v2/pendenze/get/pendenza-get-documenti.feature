@@ -1,0 +1,209 @@
+Feature: Lettura documento
+
+Background: 
+
+* callonce read('classpath:utils/common-utils.feature')
+* callonce read('classpath:configurazione/v1/anagrafica.feature')
+* callonce read('classpath:configurazione/v1/operazioni-resetCacheConSleep.feature')
+
+* def pendenzeBaseurl = getGovPayApiBaseUrl({api: 'pendenze', versione: 'v2', autenticazione: 'basic'})
+* def basicAutenticationHeader = getBasicAuthenticationHeader( { username: idA2A, password: pwdA2A } )
+
+Scenario: Lettura di un avviso pdf per un documento con rate
+
+* def idDocumento = getCurrentTimeMillis()
+
+* def idPendenza = getCurrentTimeMillis()
+* def pendenzaPut = read('../put/msg/pendenza-put_monovoce_riferimento.json')
+* set pendenzaPut.documento.identificativo = idDocumento
+* set pendenzaPut.documento.descrizione = "Prova documento rate"
+* set pendenzaPut.documento.rata = 1
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+And request pendenzaPut
+When method put
+Then status 201
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+When method get
+Then status 200
+
+* def idPendenza = getCurrentTimeMillis()
+* def pendenzaPut = read('../put/msg/pendenza-put_monovoce_riferimento.json')
+* set pendenzaPut.documento.identificativo = idDocumento
+* set pendenzaPut.documento.descrizione = "Prova documento rate"
+* set pendenzaPut.documento.rata = 2
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+And request pendenzaPut
+When method put
+Then status 201
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+When method get
+Then status 200
+
+* def idPendenza = getCurrentTimeMillis()
+* def pendenzaPut = read('../put/msg/pendenza-put_monovoce_riferimento.json')
+* set pendenzaPut.documento.identificativo = idDocumento
+* set pendenzaPut.documento.descrizione = "Prova documento rate"
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And param stampaAvviso = 'true'
+And headers basicAutenticationHeader
+And request pendenzaPut
+When method put
+Then status 201
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+When method get
+Then status 200
+
+Given url pendenzeBaseurl
+And path '/documenti', response.dominio.idDominio, idDocumento, 'avvisi'
+And headers basicAutenticationHeader
+And header Accept = 'application/pdf'
+When method get
+Then status 200
+
+Scenario: Lettura di un avviso pdf per un documento con soglie
+
+* def idDocumento = getCurrentTimeMillis()
+
+* def idPendenza = getCurrentTimeMillis()
+* def pendenzaPut = read('../put/msg/pendenza-put_monovoce_riferimento.json')
+* set pendenzaPut.documento.identificativo = idDocumento
+* set pendenzaPut.documento.descrizione = "Prova documento"
+* set pendenzaPut.documento.soglia.giorni = 5
+* set pendenzaPut.documento.soglia.tipo = 'ENTRO'
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+And request pendenzaPut
+When method put
+Then status 201
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+When method get
+Then status 200
+
+* def idPendenza = getCurrentTimeMillis()
+* def pendenzaPut = read('../put/msg/pendenza-put_monovoce_riferimento.json')
+* set pendenzaPut.documento.identificativo = idDocumento
+* set pendenzaPut.documento.descrizione = "Prova documento"
+* set pendenzaPut.documento.soglia.giorni = 30
+* set pendenzaPut.documento.soglia.tipo = 'ENTRO'
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+And request pendenzaPut
+When method put
+Then status 201
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+When method get
+Then status 200
+
+* def idPendenza = getCurrentTimeMillis()
+* def idPendenza = getCurrentTimeMillis()
+* def pendenzaPut = read('../put/msg/pendenza-put_monovoce_riferimento.json')
+* set pendenzaPut.documento.identificativo = idDocumento
+* set pendenzaPut.documento.descrizione = "Prova documento"
+* set pendenzaPut.documento.soglia.giorni = 30
+* set pendenzaPut.documento.soglia.tipo = 'OLTRE'
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+And request pendenzaPut
+When method put
+Then status 201
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+When method get
+Then status 200
+
+* def idDominioToCheck = response.dominio.idDominio
+
+Given url pendenzeBaseurl
+And path 'documenti', idDominioToCheck, idDocumento, 'avvisi'
+And headers basicAutenticationHeader
+And header Accept = 'application/pdf'
+When method get
+Then status 200
+
+Given url pendenzeBaseurl
+And path 'documenti', idDominioToCheck, idDocumento, 'avvisi'
+And headers basicAutenticationHeader
+When method get
+Then status 406
+
+
+Scenario: Lettura di un avviso pdf per un documento con violazione CDS
+
+* def idDocumento = getCurrentTimeMillis()
+
+* def idPendenza = getCurrentTimeMillis()
+* def pendenzaPut = read('../put/msg/pendenza-put_monovoce_riferimento.json')
+* set pendenzaPut.documento.identificativo = idDocumento
+* set pendenzaPut.documento.descrizione = "Prova documento"
+* set pendenzaPut.documento.soglia.tipo = 'RIDOTTO'
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+And request pendenzaPut
+When method put
+Then status 201
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+When method get
+Then status 200
+
+* def idPendenza = getCurrentTimeMillis()
+* def pendenzaPut = read('../put/msg/pendenza-put_monovoce_riferimento.json')
+* set pendenzaPut.documento.identificativo = idDocumento
+* set pendenzaPut.documento.descrizione = "Prova documento"
+* set pendenzaPut.documento.soglia.tipo = 'SCONTATO'
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+And request pendenzaPut
+When method put
+Then status 201
+
+Given url pendenzeBaseurl
+And path '/pendenze', idA2A, idPendenza
+And headers basicAutenticationHeader
+When method get
+Then status 200
+
+Given url pendenzeBaseurl
+And path 'documenti', response.dominio.idDominio, idDocumento, 'avvisi'
+And headers basicAutenticationHeader
+And header Accept = 'application/pdf'
+When method get
+Then status 200
+

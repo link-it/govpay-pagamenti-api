@@ -1,0 +1,228 @@
+
+<project name="setup" basedir=".">
+
+	<description>
+        	SETUP
+	</description>
+
+	<import file="local_env.xml" />
+
+	<!-- estensione di ant (if .... ) -->
+	<taskdef resource="net/sf/antcontrib/antcontrib.properties">
+          <classpath>
+              <pathelement location="${lib}/ant/ant-contrib-1.0b3.jar"/>
+          </classpath>
+	</taskdef>
+       <taskdef name="groovy" classname="org.codehaus.groovy.ant.Groovy">
+          <classpath>
+              <pathelement location="${lib}/ant/groovy-3.0.23.jar"/>
+              <pathelement location="${lib}/ant/groovy-ant-3.0.23.jar"/>
+          </classpath>
+        </taskdef>
+
+	<import file="./ant/properties-build.xml" />
+	<import file="./ant/ds-build.xml" />
+	<import file="./ant/sql-build.xml" />
+
+
+	<property name="librerie" value="../lib/" />
+	<property name="archivi" value="../archivi/" />
+	<property name="sql" value="../sql/" />
+	<property name="datasource" value="../datasource/" />
+
+        <!-- Codifico le password -->
+        <java classname="org.openspcoop2.utils.crypt.Password" fork="true" outputproperty="antinstaller_principal_pwd_md5">
+                <arg value="${antinstaller_principal_pwd}" />
+                <classpath>
+                        <path location="${librerie}/shared/openspcoop2_utils-crypt-3.2.1.jar"/>
+                </classpath>
+        </java>
+
+	<!-- Ripulisce la distribuzione -->
+	<target name="installer_clean">
+		<delete dir="${build}" />
+		<delete dir="${dist}" />
+	</target>
+
+
+	<!-- Create the build directory structure used by compile -->
+	<target name="installer_init">
+		<mkdir dir="${build}" />
+		<mkdir dir="${tmp_dir}" />
+		<mkdir dir="${dist}" />
+	</target>
+
+
+	<target name="init_setup" depends="installer_clean,installer_init">
+		<copy todir="${tmp_dir}/govpay">
+			<fileset dir="${archivi}">
+				<include name="*.war"/>
+			</fileset>
+		</copy>
+	</target>
+
+	<target name="setup_properties">
+		 <echo>
+		  $${antinstaller_work_folder}    => ${antinstaller_work_folder}
+		  $${antinstaller_log_folder}    => ${antinstaller_log_folder}
+		 </echo>
+
+  <!-- Rimuovi lo slash finale con propertyregex (ant-contrib) -->
+<groovy>
+        def confpath = properties['antinstaller_work_folder']
+        if (confpath.endsWith(System.getProperty('file.separator'))) {
+            confpath = confpath.substring(0, confpath.length() - 1)
+        }
+        project.setUserProperty('antinstaller_work_folder_noendsep', confpath)
+
+        def logpath = properties['antinstaller_log_folder']
+        if (logpath.endsWith(System.getProperty('file.separator'))) {
+            logpath = logpath.substring(0, logpath.length() - 1)
+        }
+        project.setUserProperty('antinstaller_log_folder_noendsep', logpath)
+
+       def ext = properties['antinstaller_springsec_ext']
+       if (ext) {
+          project.setUserProperty('springsec_location','file:'+confpath)
+       } else {
+          project.setUserProperty('springsec_location','/WEB-INF')
+       }
+
+       // Batch esterni
+       def batchAca = properties['antinstaller_batch_aca']
+       if (batchAca) {
+          def acaUrl = properties['antinstaller_batch_aca_url']
+          project.setUserProperty('it.govpay.batch.aca.endpoint.url', acaUrl)
+       } else {
+          project.setUserProperty('it.govpay.batch.aca.endpoint.url','')
+       }
+
+       def batchFdr = properties['antinstaller_batch_fdr']
+       if (batchFdr) {
+          def fdrUrl = properties['antinstaller_batch_fdr_url']
+          project.setUserProperty('it.govpay.batch.acquisizioneRendicontazioni.modalita','esterno')
+          project.setUserProperty('it.govpay.batch.fdr.endpoint.url', fdrUrl)
+       } else {
+          project.setUserProperty('it.govpay.batch.acquisizioneRendicontazioni.modalita','interno')
+          project.setUserProperty('it.govpay.batch.fdr.endpoint.url','')
+       }
+
+       def rtUrl = properties['antinstaller_batch_recupero_rt_url']
+       project.setUserProperty('it.govpay.batch.recuperoRT.endpoint.url', rtUrl ?: '')
+
+       def batchIban = properties['antinstaller_batch_iban']
+       if (batchIban) {
+          def ibanUrl = properties['antinstaller_batch_iban_url']
+          project.setUserProperty('it.govpay.batch.iban.endpoint.url', ibanUrl)
+       } else {
+          project.setUserProperty('it.govpay.batch.iban.endpoint.url','')
+       }
+
+       def batchNotifica = properties['antinstaller_batch_notifica']
+       if (batchNotifica) {
+          def notificaUrl = properties['antinstaller_batch_notifica_url']
+          project.setUserProperty('it.govpay.batch.notifica.endpoint.url', notificaUrl)
+       } else {
+          project.setUserProperty('it.govpay.batch.notifica.endpoint.url','')
+       }
+
+</groovy>
+
+    <!-- Se protocollo=https => autenticazione=ssl, altrimenti=basic -->
+    <condition property="autenticazione" value="ssl" else="basic">
+        <equals arg1="${protocollo}" arg2="https"/>
+    </condition>
+
+
+		 <echo>
+		  $${antinstaller_work_folder_noendsep}    => ${antinstaller_work_folder_noendsep}
+		  $${antinstaller_log_folder_noendsep}    => ${antinstaller_log_folder_noendsep}
+		  $${protocollo}    => ${protocollo}
+		  $${autenticazione}    => ${autenticazione}
+		  $${springsec_location}    => ${springsec_location}
+		 </echo>
+
+
+		<!-- Configurazione del war -->
+		<foreach target="govpay_war_properties_tomcat" param="file" >
+		   <fileset dir="${tmp_dir}/govpay/">
+		     <include name="**/*.war"/>
+		   </fileset>
+		</foreach>
+
+	</target>
+
+	<target name="setup_datasource">
+		<copy file="${datasource}/commons/context.datasource.xml" todir="${tmp_dir}"/>
+		<copy file="${datasource}/${antinstaller_tipo_database}/server.datasource.xml" todir="${tmp_dir}"/>
+		<antcall target="ds_settings">
+			<param name="file" value="${tmp_dir}/server.datasource.xml"/>
+		</antcall>
+	</target>
+
+	<target name="setup_sql">
+		<copy file="${sql}/${antinstaller_tipo_database}/gov_pay.sql" todir="${tmp_dir}"/>
+		<copy file="${sql}/${antinstaller_tipo_database}/init.sql" todir="${tmp_dir}"/>
+		<concat destfile="${tmp_dir}/gov_pay.sql" append="yes" >
+			<header filtering="no" trimleading="yes">
+
+-- Init
+
+			</header>
+			<filelist dir="${tmp_dir}" files="init.sql"/>
+		</concat>
+                <antcall target="sql_settings">
+                        <param name="file" value="${tmp_dir}/gov_pay.sql"/>
+                </antcall>
+        </target>
+
+	<target name="extract_war_spring" >
+            <unzip src="${file}" dest="${dist}/cfg" >
+                <patternset>
+                  <include name="**/*-applicationContext-security.xml"/>
+                </patternset>
+		<mapper type="flatten"/>
+    	    </unzip>
+        </target>
+
+	<target name="setup_completo"  depends="init_setup, setup_properties, setup_datasource, setup_sql, setup_finished"/>
+	<target name="setup_finished">
+		<delete dir="${dist}"/>
+
+          <if>
+          	<equals arg1="${antinstaller_springsec_ext}" arg2="true" />
+		  	<then>
+            	<mkdir dir="${dist}/cfg" />
+
+		  		<foreach target="extract_war_spring" param="file" >
+	        	    	<fileset dir="${tmp_dir}/govpay/">
+	                		<include name="*.war"/>
+		                </fileset>
+	        	    </foreach>
+		  	</then>
+          </if>
+
+		<mkdir dir="${dist}/archivi" />
+		<copy todir="${dist}/archivi">
+			<fileset dir="${tmp_dir}/govpay">
+				<include name="*.war" />
+			</fileset>
+		</copy>
+
+		<mkdir dir="${dist}/datasource" />
+		<copy file="${tmp_dir}/context.datasource.xml" todir="${dist}/datasource" />
+		<copy file="${tmp_dir}/server.datasource.xml" todir="${dist}/datasource" />
+		<mkdir dir="${dist}/sql" />
+		<mkdir dir="${dist}/sql/patch" />
+		<copy file="${tmp_dir}/gov_pay.sql" todir="${dist}/sql"/>
+		<copy todir="${dist}/sql/patch">
+			<fileset dir="${sql}/${antinstaller_tipo_database}/patch">
+				<include name="**/*.sql" />
+			</fileset>
+		</copy>
+                <delete dir="${file}.tmp" />
+		<delete dir="${build}"/>
+	</target>
+
+
+</project>

@@ -1,0 +1,537 @@
+name: Java CI with Maven
+
+on:
+  push:
+    branches: [ "**" ]
+    tags:
+      - '*'
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+
+  # ── Build, Test, Quality ─────────────────────────────────────────────
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Set timezone to Europe/Rome
+      run: sudo timedatectl set-timezone Europe/Rome
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v5
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+
+    # Le librerie di GovPay (api-commons, core, orm, ...) non sono su Maven Central:
+    # si compilano dai sorgenti ufficiali del tag GitHub e si mettono in cache.
+    - name: Cache GovPay libraries
+      id: govpay-jars
+      uses: actions/cache@v5
+      with:
+        path: ~/.m2/repository/it/govpay
+        key: govpay-jars-${{ hashFiles('pom.xml', 'script/install-govpay-jars.sh') }}
+
+    - name: Install GovPay libraries
+      if: steps.govpay-jars.outputs.cache-hit != 'true'
+      run: ./script/install-govpay-jars.sh
+
+    - name: Check NVD_API_KEY
+      run: |
+        if [ -z "$NVD_API_KEY" ]; then
+          echo "NVD_API_KEY is NOT set!"
+        else
+          echo "NVD_API_KEY is set."
+        fi
+      env:
+        NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+
+    - name: Check OSS_INDEX_USER
+      run: |
+        if [ -z "$OSS_INDEX_USER" ]; then
+          echo "OSS_INDEX_USER is NOT set!"
+        else
+          echo "OSS_INDEX_USER is set."
+        fi
+      env:
+        OSS_INDEX_USER: ${{ vars.OSS_INDEX_USER }}
+
+    - name: Check OSS_INDEX_PASSWORD
+      run: |
+        if [ -z "$OSS_INDEX_PASSWORD" ]; then
+          echo "OSS_INDEX_PASSWORD is NOT set!"
+        else
+          echo "OSS_INDEX_PASSWORD is set."
+        fi
+      env:
+        OSS_INDEX_PASSWORD: ${{ secrets.OSS_INDEX_PASSWORD }}
+
+    - name: Read OWASP plugin version from pom.xml
+      id: owasp
+      run: |
+        VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=owasp.plugin.version)"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "OWASP Dependency-Check version: $VERSION"
+
+    - name: Get date for cache key
+      id: date
+      run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+    - name: Cache OWASP Dependency-Check DB
+      id: owasp-cache
+      uses: actions/cache@v5
+      with:
+        path: .dependency-check/data
+        # Chiave: versione plugin (bump -> cache invalidata per schema diverso)
+        # + data (allineamento con il refresh giornaliero del DB NVD).
+        key: ${{ runner.os }}-owasp-v${{ steps.owasp.outputs.version }}-${{ steps.date.outputs.date }}
+        restore-keys: |
+          ${{ runner.os }}-owasp-v${{ steps.owasp.outputs.version }}-
+
+    - name: Build with Maven
+      env:
+        NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        OSS_INDEX_USER: ${{ vars.OSS_INDEX_USER }}
+        OSS_INDEX_PASSWORD: ${{ secrets.OSS_INDEX_PASSWORD }}
+        # Se la cache è esatta (stessa giornata) skippa l'update NVD
+        NOUPDATE_FLAG: ${{ steps.owasp-cache.outputs.cache-hit == 'true' && '-DautoUpdate=false' || '' }}
+      run: mvn clean install -Denv=installer_template -DnvdApiKey=$NVD_API_KEY -DossIndexUsername=$OSS_INDEX_USER -DossIndexPassword=$OSS_INDEX_PASSWORD -DdataDirectory=.dependency-check/data -Dowasp.format=ALL -Dowasp.output.dir=./dependency-check-report $NOUPDATE_FLAG
+
+    # L'installer serve ai job che costruiscono le immagini docker. Viene
+    # prodotto e caricato solo quando quei job gireranno davvero: e' un archivio
+    # da centinaia di MB e non ha senso pagarlo su ogni branch di lavoro.
+    - name: Generate Tomcat installer
+      if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' || endsWith(github.ref, '.x')
+      run: |
+        pushd src/main/resources/setup/
+        bash prepareSetup.sh tomcat
+        popd
+
+    - name: Upload installer
+      if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' || endsWith(github.ref, '.x')
+      uses: actions/upload-artifact@v7
+      with:
+        name: govpay-installer
+        path: src/main/resources/setup/target/*.tgz
+        retention-days: 5
+
+    - name: License Analysis
+      run: |
+        set -euo pipefail
+        echo "Downloading license information..."
+        mvn org.codehaus.mojo:license-maven-plugin:2.4.0:aggregate-download-licenses -DexcludeScopes=test,provided,system -DincludeTransitiveDependencies=true
+        echo "Analyzing licenses..."
+        python3 .github/workflows/scripts/analyze_licenses.py --exceptions .github/workflows/scripts/license-exceptions.json
+
+    - name: Archive licenses analysis results
+      uses: actions/upload-artifact@v7
+      with:
+        name: third-party-licenses
+        path: third-party-licenses
+
+    - name: SpotBugs Analysis
+      run: mvn spotbugs:spotbugs -Dowasp=none
+
+    - name: Collect SpotBugs reports
+      if: always()
+      run: |
+        mkdir -p target/spotbugs-reports
+        find . -name "spotbugs*.xml" -o -name "spotbugs*.html" | while read f; do
+          module=$(echo "$f" | sed 's|^\./||;s|/target/.*||;s|/|_|g')
+          ext="${f##*.}"
+          cp "$f" "target/spotbugs-reports/${module}.${ext}"
+        done
+
+    - name: Upload SpotBugs reports
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: spotbugs-reports
+        path: target/spotbugs-reports/
+        retention-days: 30
+
+    - name: Collect OWASP reports
+      if: always()
+      run: |
+        mkdir -p target/reports
+        find . -name "dependency-check-report.*" -exec cp {} target/reports/ \; 2>/dev/null || true
+
+    - name: Upload OWASP reports
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: owasp-reports
+        path: target/reports/
+        retention-days: 30
+
+  # ── OSV Scan (parallelo al build, non blocca) ────────────────────────
+  osv_scan:
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@c51854704019a247608d928f370c98740469d4b5" # v2.3.5
+    with:
+      fail-on-vuln: false
+      scan-args: |-
+        -r
+        .
+        --lockfile
+        ./pom.xml
+
+  # ── SBOM CycloneDX ───────────────────────────────────────────────────
+  sbom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    if: vars.DISABLE_SBOM_JOB != 'true'
+    env:
+      SBOM_CYCLONEDX_PLUGIN_VERSION: '2.9.1'
+      SBOM_CYCLONEDX_SCHEMA_VERSION: '1.6'
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      # Le librerie di GovPay (api-commons, core, orm, ...) non sono su Maven Central:
+      # si compilano dai sorgenti ufficiali del tag GitHub e si mettono in cache.
+      - name: Cache GovPay libraries
+        id: govpay-jars
+        uses: actions/cache@v5
+        with:
+          path: ~/.m2/repository/it/govpay
+          key: govpay-jars-${{ hashFiles('pom.xml', 'script/install-govpay-jars.sh') }}
+
+      - name: Install GovPay libraries
+        if: steps.govpay-jars.outputs.cache-hit != 'true'
+        run: ./script/install-govpay-jars.sh
+
+      - name: Generate SBOM (CycloneDX json + xml)
+        run: |
+          mkdir -p sbom/cyclonedx
+          echo "Generazione SBOM CycloneDX (json + xml) ..."
+          mvn org.cyclonedx:cyclonedx-maven-plugin:${SBOM_CYCLONEDX_PLUGIN_VERSION}:makeAggregateBom \
+            -DoutputDirectory=sbom/cyclonedx \
+            -DoutputName=bom.cdx \
+            -DoutputFormat=all \
+            -DschemaVersion=${SBOM_CYCLONEDX_SCHEMA_VERSION} \
+            -DskipNotDeployed=false \
+            -DincludeTestScope=false \
+            -DprojectType=application
+          ls -la sbom/cyclonedx/
+
+      - name: Upload SBOM artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-report
+          path: sbom/
+          retention-days: 30
+
+  # ── Upload SBOM su Dependency-Track ──────────────────────────────────
+  # Traduzione del job GitLab dependency-track-upload.
+  # Esecuzione: sui tag, su master e sulle linee di manutenzione x.y.x
+  # (per esempio 3.9.x), con la stessa condizione usata da docker_dev.
+  # Forzabile con FORCE_DTRACK_UPLOAD_JOB, disattivabile del tutto con
+  # DISABLE_DTRACK_UPLOAD_JOB, che ha la precedenza su tutto il resto.
+  dependency-track-upload:
+    needs: [ sbom ]
+    if: >-
+      vars.DISABLE_DTRACK_UPLOAD_JOB != 'true' &&
+      (github.ref_type == 'tag' ||
+       github.ref == 'refs/heads/master' || endsWith(github.ref, '.x') ||
+       vars.FORCE_DTRACK_UPLOAD_JOB == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    # Come su GitLab, il fallimento blocca solo tag, master e linee x.y.x;
+    # le esecuzioni forzate su altri branch sono tolleranti.
+    continue-on-error: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/master' && !endsWith(github.ref, '.x') }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download SBOM
+        uses: actions/download-artifact@v7
+        with:
+          name: sbom-report
+          path: sbom/
+
+      - name: Verifica prerequisiti
+        env:
+          DTRACK_API_KEY: ${{ secrets.GOVPAY_DTRACK_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DTRACK_API_KEY}" ]; then
+            echo "ERRORE: secret GOVPAY_DTRACK_API_KEY non configurato."
+            exit 1
+          fi
+          if [ ! -f script/sbom/upload-sbom-parent-required.sh ]; then
+            echo "ERRORE: script script/sbom/upload-sbom-parent-required.sh non presente nel repository."
+            exit 1
+          fi
+          if [ ! -f "sbom/cyclonedx/bom.cdx.json" ]; then
+            echo "ERRORE: SBOM non trovato in sbom/cyclonedx/bom.cdx.json"
+            ls -R sbom/ || true
+            exit 1
+          fi
+          echo "SBOM: $(wc -c < sbom/cyclonedx/bom.cdx.json) byte"
+
+      # Su tag la versione e' il tag ed e' marcata latest; su master e sulle
+      # linee x.y.x la versione e' il nome del branch, cosi' master e le linee x.y.x
+      # convivono come versioni distinte dello stesso progetto.
+      - name: Determina versione Dependency-Track
+        id: dtrack
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          set -euo pipefail
+          if [ "$REF_TYPE" = "tag" ]; then
+            VERSION="$REF_NAME"; LATEST="true"
+          else
+            case "$REF_NAME" in
+              master|*.x) VERSION="$REF_NAME"; LATEST="false" ;;
+              *)          VERSION="dev";       LATEST="false" ;;
+            esac
+          fi
+          echo "Versione Dependency-Track: $VERSION (latest=$LATEST)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+
+      # L'artifactId dell'aggregatore e' "bom": senza override il progetto
+      # comparirebbe su Dependency-Track con quel nome. DTRACK_PROJECT_NAME
+      # lo forza a "govpay-pagamenti-api", distinto dal GovPay completo.
+      - name: Upload SBOM su Dependency-Track
+        env:
+          DTRACK_API_KEY: ${{ secrets.GOVPAY_DTRACK_API_KEY }}
+          WORKSPACE: ${{ github.workspace }}
+          DTRACK_PROJECT_NAME: govpay-pagamenti-api
+          DTRACK_VERSION: ${{ steps.dtrack.outputs.version }}
+          DTRACK_LATEST: ${{ steps.dtrack.outputs.latest }}
+        run: |
+          set -euo pipefail
+          chmod +x script/sbom/upload-sbom-parent-required.sh
+          ./script/sbom/upload-sbom-parent-required.sh \
+            "${DTRACK_API_KEY}" \
+            "${WORKSPACE}/sbom/cyclonedx/bom.cdx.json" \
+            "GovPay-Legacy"
+
+  # ── GitHub Release (solo tag) ────────────────────────────────────────
+  release:
+    runs-on: ubuntu-latest
+    needs: [ build, osv_scan, sbom ]
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v5
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+
+    # Le librerie di GovPay (api-commons, core, orm, ...) non sono su Maven Central:
+    # si compilano dai sorgenti ufficiali del tag GitHub e si mettono in cache.
+    - name: Cache GovPay libraries
+      id: govpay-jars
+      uses: actions/cache@v5
+      with:
+        path: ~/.m2/repository/it/govpay
+        key: govpay-jars-${{ hashFiles('pom.xml', 'script/install-govpay-jars.sh') }}
+
+    - name: Install GovPay libraries
+      if: steps.govpay-jars.outputs.cache-hit != 'true'
+      run: ./script/install-govpay-jars.sh
+
+    - name: Build release artifacts
+      run: mvn clean install -Denv=installer_template -Dowasp=none
+
+    - name: Generate Tomcat installer
+      run: |
+        pushd src/main/resources/setup/
+        bash prepareSetup.sh tomcat
+        popd
+
+    - name: Download OWASP reports
+      uses: actions/download-artifact@v7
+      with:
+        name: owasp-reports
+        path: reports/owasp/
+
+    - name: Download third-party-licenses
+      uses: actions/download-artifact@v7
+      with:
+        name: third-party-licenses
+        path: reports/third-party-licenses/
+
+    - name: Download SpotBugs reports
+      uses: actions/download-artifact@v7
+      continue-on-error: true
+      with:
+        name: spotbugs-reports
+        path: reports/spotbugs/
+
+    - name: Download OSV Scanner SARIF
+      uses: actions/download-artifact@v7
+      continue-on-error: true
+      with:
+        name: OSV Scanner SARIF file
+        path: reports/osv/
+
+    - name: Download SBOM
+      uses: actions/download-artifact@v7
+      continue-on-error: true
+      with:
+        name: sbom-report
+        path: reports/sbom/
+
+    - name: Collect release artifacts
+      run: |
+        mkdir -p release-artifacts
+        cp src/main/resources/setup/target/*.tgz release-artifacts/
+        ls -lh release-artifacts/
+
+    - name: Assemble reports ZIP
+      run: |
+        mkdir -p reports/owasp reports/osv reports/spotbugs reports/third-party-licenses reports/sbom
+
+        # pipeline info
+        echo "Pipeline Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+          > reports/${{ github.ref_name }}_actions_run.txt
+
+        zip -r release-artifacts/release-reports-${{ github.ref_name }}.zip reports/
+        ls -lh release-artifacts/
+
+    - name: Create GitHub release
+      uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
+      with:
+        files: |
+          release-artifacts/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+  # ── Immagine docker di sviluppo (push su master e sulle linee x.y.x) ──
+  # Un push ordinario, anche su master, produce un'immagine di sviluppo: solo un
+  # tag produce le immagini stabili. Le due destinazioni sono repository distinti,
+  # quindi i tag non possono collidere.
+  docker_dev:
+    runs-on: ubuntu-latest
+    needs: [ build ]
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') && (github.ref == 'refs/heads/master' || endsWith(github.ref, '.x'))
+    permissions:
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Download installer
+      uses: actions/download-artifact@v7
+      with:
+        name: govpay-installer
+        path: installer/
+
+    - name: Read version from installer
+      id: ver
+      run: |
+        set -euo pipefail
+        TGZ="$(ls installer/govpay-installer-*.tgz)"
+        VER="$(basename "${TGZ}" .tgz)"; VER="${VER#govpay-installer-}"
+        echo "version=${VER}" >> "$GITHUB_OUTPUT"
+        echo "installer=${TGZ}" >> "$GITHUB_OUTPUT"
+        echo "Versione: ${VER}"
+
+    - name: Docker Hub login
+      run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ vars.DOCKERHUB_USERNAME }}" --password-stdin
+
+    - name: Build and push dev image
+      run: |
+        ./docker/build-images.sh \
+          --version "${{ steps.ver.outputs.version }}" \
+          --installer "${{ steps.ver.outputs.installer }}" \
+          --set dev \
+          --image-base "${{ vars.DOCKER_IMAGE_BASE_DEV || 'linkitaly/govpay-pagamenti-api-dev' }}" \
+          --push
+
+    - name: Docker Hub logout
+      if: always()
+      run: docker logout
+
+  # ── Immagini docker stabili (solo tag) ────────────────────────────────
+  # Una immagine per esecutore: cinque immagini finali piu' i rispettivi stage
+  # installer non stanno nel disco di un solo runner GitHub, e in parallelo il
+  # tempo di un rilascio resta quello di una singola immagine.
+  docker_release:
+    runs-on: ubuntu-latest
+    needs: [ release ]
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [ postgresql, oracle, mariadb, mysql, hsql ]
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Download installer
+      uses: actions/download-artifact@v7
+      with:
+        name: govpay-installer
+        path: installer/
+
+    - name: Read version from installer
+      id: ver
+      run: |
+        set -euo pipefail
+        TGZ="$(ls installer/govpay-installer-*.tgz)"
+        VER="$(basename "${TGZ}" .tgz)"; VER="${VER#govpay-installer-}"
+        echo "version=${VER}" >> "$GITHUB_OUTPUT"
+        echo "installer=${TGZ}" >> "$GITHUB_OUTPUT"
+        echo "Versione: ${VER}"
+
+    - name: Docker Hub login
+      run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ vars.DOCKERHUB_USERNAME }}" --password-stdin
+
+    # Il tag :latest e' derivato dall'immagine senza database, quindi lo aggiunge
+    # soltanto la voce hsql della matrice.
+    - name: Build and push release image
+      run: |
+        ./docker/build-images.sh \
+          --version "${{ steps.ver.outputs.version }}" \
+          --installer "${{ steps.ver.outputs.installer }}" \
+          --set release \
+          --only "${{ matrix.db }}" \
+          --image-base "${{ vars.DOCKER_IMAGE_BASE || 'linkitaly/govpay-pagamenti-api' }}" \
+          ${{ matrix.db == 'hsql' && '--latest' || '' }} \
+          --push
+
+    - name: Docker Hub logout
+      if: always()
+      run: docker logout

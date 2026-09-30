@@ -1,0 +1,100 @@
+{
+   "dominio": {
+	  "idDominio":"#(idDominio)",
+	  "ragioneSociale": "#notnull",
+	  "indirizzo": "#ignore",
+	  "civico": "#ignore",
+	  "cap": "#ignore",
+	  "localita": "#ignore",
+	  "provincia": "#ignore",
+	  "nazione": "#ignore",
+	  "email": "#ignore",
+	  "pec": "#ignore",
+	  "tel": "#ignore",
+	  "fax": "#ignore",
+	  "web": "#ignore",
+	  "gln": "#ignore",
+	  "cbill": "#ignore",
+	  "iuvPrefix": "#ignore",
+	  "stazione": "#ignore",
+	  "auxDigit": "#ignore",
+	  "segregationCode": "#ignore",
+	  "logo": "#ignore",
+	  "abilitato": "#notnull",
+	  "autStampaPosteItaliane": "#ignore",
+	  "intermediato": "#ignore",
+	  "scaricaFr": "#ignore",
+	  "area": "#ignore",
+	  "unitaOperative": "#ignore",
+	  "contiAccredito": "#ignore",
+	  "entrate": "#ignore",
+	  "tipiPendenza": "#ignore"
+	},
+   "idIncasso":"#notnull",
+   "causale":"#(causale)",
+   "importo":"#(importo)",
+   "data":"#notnull",
+   "sct":"#notnull",
+   "iuv":"##string",
+   "idFlusso":"##string",
+   "riscossioni":[
+      {
+         "idDominio":"#(idDominio)",
+         "iuv":"#(iuv1)",
+         "iur":"#notnull",
+         "indice":1,
+         "pendenza":"#notnull",
+         "vocePendenza":{
+            "indice":1,
+            "idVocePendenza":"1",
+            "importo":"#(importo1)",
+            "descrizione":"Diritti e segreteria",
+            "stato":"Eseguito",
+            "pendenza" : "#notnull"
+         },
+         "rpp":"#notnull",
+         "stato":"INCASSATA",
+         "tipo":"ENTRATA",
+         "importo":"#(importo1)",
+         "data":"#notnull",
+         "commissioni":"##number",
+         "incasso":{
+            "causale":"#(causale)",
+            "importo":"#(importo)",
+            "idDominio":"#(idDominio)",
+            "idIncasso":"#notnull"
+         },
+         "idVocePendenza":"1", 
+         "allegato":"{}"
+      },
+      {
+         "idDominio":"#(idDominio)",
+         "iuv":"#(iuv2)",
+         "iur":"#notnull",
+         "indice":1,
+         "pendenza":"#notnull",
+         "vocePendenza":{
+            "indice":1,
+            "idVocePendenza":"1",
+            "importo":"#(importo2)",
+            "descrizione":"Diritti e segreteria",
+            "stato":"Eseguito",
+            "pendenza" : "#notnull"
+         },
+         "rpp":"#notnull",
+         "stato":"INCASSATA",
+         "tipo":"ENTRATA",
+         "importo":"#(importo2)",
+         "data":"#notnull",
+         "commissioni":"##number",
+         "incasso":{
+            "causale":"#(causale)",
+            "importo":"#(importo)",
+            "idDominio":"#(idDominio)",
+            "idIncasso":"#notnull"
+         },
+         "idVocePendenza":"1", 
+         "allegato":"{}"
+      }
+   ]
+}
