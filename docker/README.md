@@ -82,7 +82,7 @@ La pipeline GitHub Actions (`.github/workflows/maven.yml`) costruisce le immagin
 
 | Evento | Job | Risultato |
 |---|---|---|
-| push su `master` o su un branch `*.x` | `docker_dev` | immagine postgres in `linkitaly/govpay-pagamenti-api-dev` |
+| push su `main` o su un branch `*.x` | `docker_dev` | immagine postgres in `linkitaly/govpay-pagamenti-api-dev` |
 | push di un tag | `docker_release` | cinque immagini in `linkitaly/govpay-pagamenti-api`, piu' `:latest` |
 | push su un altro branch, pull request | nessuno | niente immagini |
 
