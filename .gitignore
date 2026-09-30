@@ -1,8 +1,10 @@
 # dipendenze terze parti
 /dependencies
 
-# custom property filters
+# custom property filters (i filtri template usati dal build sono versionati)
 /src/main/resources/filters/*
+!/src/main/resources/filters/template.filter.properties
+!/src/main/resources/filters/installer_template.filter.properties
 
 # maven version backups
 pom.xml.versionsBackup
