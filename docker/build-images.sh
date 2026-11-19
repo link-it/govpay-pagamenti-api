@@ -43,7 +43,7 @@ Usage: $(basename "$0") --version <versione> --installer <file.tgz> --set dev|re
 
 Obbligatori:
   --version <v>      Versione del prodotto, usata per il tag e per i path interni
-                     all'immagine (es. 3.9.3.p3)
+                     all'immagine (es. 3.9.3.p8)
   --installer <f>    Installer binario da cui costruire le immagini. Il nome del
                      file deve essere govpay-installer-<versione>.tgz
   --set dev|release  Insieme di immagini da produrre:

@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>it.govpay</groupId>
 	<artifactId>bom</artifactId>
-	<version>3.9.3.p3</version>
+	<version>3.9.3.p8</version>
 	<packaging>pom</packaging>
 	<name>GovPay</name>
 
@@ -64,14 +64,14 @@
 		<swagger.v3.version>2.2.55</swagger.v3.version>
 		<swagger.parser.v3.version>2.1.48</swagger.parser.v3.version>
 		<snakeyaml.version>2.7</snakeyaml.version>
-		<guava.version>33.7.1-jre</guava.version>
+		<guava.version>33.7.2-jre</guava.version>
 
 		<!-- cxf -->
-		<cxf.version>4.2.3</cxf.version>
+		<cxf.version>4.2.4</cxf.version>
 		<cxf.xjc.runtime.version>4.2.0</cxf.xjc.runtime.version>
 
 		<!-- jackson -->
-		<jackson.version>2.22.2</jackson.version>
+		<jackson.version>2.22.4</jackson.version>
 		<jackson-annotations.version>2.22</jackson-annotations.version>
 
 		<!-- Jersey -->

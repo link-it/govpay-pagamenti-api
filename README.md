@@ -13,7 +13,7 @@
 
 Wrapper di [GovPay](https://github.com/link-it/govpay) che espone il solo sottoinsieme delle API di Pagamento necessario ai portali degli Enti Creditori per avviare i pagamenti tramite il Checkout pagoPA e acquisire le relative ricevute.
 
-Il progetto è distribuito come un unico war per Tomcat, `govpay-pagamenti-api.war`, e utilizza il database e le librerie ufficiali di GovPay 3.9.3.p3 (`api-commons`, `core`, `orm` e le altre), incluse come dipendenze jar. Il codice aggiunto rispetto alla 3.9.3.p3, cioè l'avvio del pagamento tramite Checkout, si trova nel war, nel package `it.govpay.pagamento.checkout`.
+Il progetto è distribuito come un unico war per Tomcat, `govpay-pagamenti-api.war`, e utilizza il database e le librerie ufficiali di GovPay 3.9.3.p8 (`api-commons`, `core`, `orm` e le altre), incluse come dipendenze jar. Il codice aggiunto rispetto alla 3.9.3.p8, cioè l'avvio del pagamento tramite Checkout, si trova nel war, nel package `it.govpay.pagamento.checkout`.
 
 ## Funzionalità
 
@@ -43,7 +43,7 @@ Il war espone due operazioni, raggiungibili sotto il context root `/govpay-pagam
   * anonimo: la pendenza deve essere presente nella sessione e la ricevuta deve essere entro l'intervallo configurato per l'utenza anonima.
   Per cittadino e anonimo i dati personali del versante e del pagatore vengono mascherati.
 * Utenze ammesse: applicazione, cittadino e anonimo, con diritto di lettura sul servizio API Pagamenti.
-* I campi `idPagamento` e `idSessionePsp` non vengono valorizzati e `modello` vale sempre `PSP`, come nelle API di GovPay 3.9.3.p3.
+* I campi `idPagamento` e `idSessionePsp` non vengono valorizzati e `modello` vale sempre `PSP`, come nelle API di GovPay 3.9.3.p8.
 
 ## Autenticazione
 

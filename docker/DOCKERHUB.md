@@ -9,7 +9,7 @@
 
 ## Descrizione
 
-Wrapper di [GovPay](https://github.com/link-it/govpay) che espone il solo sottoinsieme delle API di Pagamento necessario ai portali degli Enti Creditori per avviare i pagamenti tramite il Checkout pagoPA e acquisire le relative ricevute. L'immagine contiene il war `govpay-pagamenti-api.war` su Tomcat 11 e Java 21, e utilizza il core e il database di GovPay 3.9.3.p3.
+Wrapper di [GovPay](https://github.com/link-it/govpay) che espone il solo sottoinsieme delle API di Pagamento necessario ai portali degli Enti Creditori per avviare i pagamenti tramite il Checkout pagoPA e acquisire le relative ricevute. L'immagine contiene il war `govpay-pagamenti-api.war` su Tomcat 11 e Java 21, e utilizza il core e il database di GovPay 3.9.3.p8.
 
 Operazioni esposte, sotto il context `/govpay-pagamenti-api`:
 
@@ -93,7 +93,7 @@ volumes:
   govpay-db:
 ```
 
-Il database puo' essere quello di un'installazione di GovPay 3.9.3.p3: in questo caso lasciare `GOVPAY_POP_DB_SKIP` al valore di default (`true`), cosi' lo schema esistente non viene toccato.
+Il database puo' essere quello di un'installazione di GovPay 3.9.3.p8: in questo caso lasciare `GOVPAY_POP_DB_SKIP` al valore di default (`true`), cosi' lo schema esistente non viene toccato.
 
 Una volta avviato, il servizio risponde per esempio su:
 

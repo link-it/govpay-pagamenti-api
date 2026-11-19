@@ -69,3 +69,7 @@ pom.xml.releaseBackup
 pom.xml.tag
 release.properties
 target/
+
+# docker: artefatti di build delle immagini
+/docker/buildcontext
+/docker/compose

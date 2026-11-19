@@ -37,7 +37,7 @@ L'installer viene prodotto in `src/main/resources/setup/target/govpay-installer-
 ./docker/build_image.sh
 
 # immagine per PostgreSQL, con tag esplicito
-./docker/build_image.sh -d postgresql -t linkitaly/govpay-pagamenti-api:3.9.3.p3_postgres
+./docker/build_image.sh -d postgresql -t linkitaly/govpay-pagamenti-api:3.9.3.p8_postgres
 
 ./docker/build_image.sh -h   # elenco completo delle opzioni
 ```
@@ -65,8 +65,8 @@ richiede il driver JDBC copiato a mano nella directory `compose/` (vedi `compose
 ```bash
 # anteprima dei comandi
 ./docker/build-images.sh \
-  --version 3.9.3.p3 \
-  --installer src/main/resources/setup/target/govpay-installer-3.9.3.p3.tgz \
+  --version 3.9.3.p8 \
+  --installer src/main/resources/setup/target/govpay-installer-3.9.3.p8.tgz \
   --set release --dry-run
 ```
 
@@ -101,7 +101,7 @@ Impostazioni richieste sul repository GitHub:
 ## Esecuzione
 
 ```bash
-docker run -d -p 8080:8080 -e GOVPAY_POP_DB_SKIP=false linkitaly/govpay-pagamenti-api:3.9.3.p3
+docker run -d -p 8080:8080 -e GOVPAY_POP_DB_SKIP=false linkitaly/govpay-pagamenti-api:3.9.3.p8
 ```
 
 * Il war e' esposto sotto `/govpay-pagamenti-api`, per esempio

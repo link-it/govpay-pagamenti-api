@@ -1,3 +1,17 @@
+2026-11-19  Giuliano Pintori <pintori@link.it>
+
+        * Avanzamento versione 3.9.3.p8. GovPay Pagamenti API usa le librerie ufficiali di GovPay 3.9.3.p8, installate con script/install-govpay-jars.sh dai sorgenti del tag link-it/govpay 3.9.3.p8. Correzioni del core che interessano il war:
+        Issue #902: stampa della ricevuta in PDF (GET /v3/ricevute con Accept application/pdf) con un logo dell'ente in formato SVG che incorpora un'immagine PNG o JPEG; il war include ora batik-codec 1.19, dipendenza transitiva della libreria stampe. Se il logo non e' stampabile la ricevuta viene stampata con il logo di default.
+        Issue #909: corrette le etichette tedesche e slovene dell'avviso bilingue in avvisi.properties.
+        Issue #901: in oracle/gov_pay.sql il campo xml della tabella fr e' opzionale, come negli altri database; non serve una patch.
+        Le altre correzioni della 3.9.3.p8 (Issue #910, #911, logo del dominio nell'API Backoffice, console) riguardano componenti di GovPay non presenti in questo war.
+
+        * Issue #903 Dichiarati nullable nella spec di API-Pagamento v2 i campi facoltativi di tipo data o numero che il portale invia a GovPay nelle pendenze spontanee di POST /pagamenti: dataValidita, dataScadenza, annoRiferimento, proprieta.dataScandenzaAvviso e importo di proprieta.descrizioneImporto. Comportamento a runtime invariato.
+
+        * Aggiornate le dipendenze come in GovPay 3.9.3.p8: CXF 4.2.3 -> 4.2.4 (11 CVE; porta nativamente neethi 3.2.4 e xmlschema-core 2.3.3, 8 CVE), jackson 2.22.2 -> 2.22.4 e guava 33.7.1-jre -> 33.7.2-jre (5 CVE). Rinominate di conseguenza le directory di third-party-licenses e aggiunta la licenza di batik-codec 1.19.
+
+        * [Sonar] Portata da GovPay 3.9.3.p8 la validazione del path del file eccezioni in .github/workflows/scripts/analyze_licenses.py (pythonsecurity:S8707).
+
 2026-09-29  Giuliano Pintori <giuliano.pintori@link.it>
 
         * Avanzamento versione 3.9.3.p3. GovPay Pagamenti API usa le librerie ufficiali di GovPay 3.9.3.p3 (api-commons, core, orm e le altre), installate con script/install-govpay-jars.sh dai sorgenti del tag link-it/govpay 3.9.3.p3.
